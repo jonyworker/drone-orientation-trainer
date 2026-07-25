@@ -2,6 +2,7 @@
 import * as THREE from 'three'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import FlightHUD from '@/components/hud/FlightHUD.vue'
+import { FEATURES } from '@/config/features.js'
 import { useKeyboardControls } from '@/composables/useKeyboardControls.js'
 import { CameraController } from '@/core/CameraController.js'
 import { DronePhysics } from '@/core/DronePhysics.js'
@@ -188,7 +189,10 @@ function resetSimulation() {
   )
 
   boundarySystem.reset()
-  scoreSystem.reset()
+
+  if (FEATURES.score) {
+    scoreSystem.reset()
+  }
 
   Object.assign(
     props.game.telemetry,
@@ -272,12 +276,13 @@ function animate(timestamp) {
       },
     )
 
-    telemetry.score =
-      scoreSystem.update(
+    telemetry.score = FEATURES.score
+      ? scoreSystem.update(
         delta,
         telemetry.distance,
         telemetry.outside,
       )
+      : 0
 
     cameraController.update(
       delta,

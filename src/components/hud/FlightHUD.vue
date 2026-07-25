@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { FEATURES } from '@/config/features.js'
 
 const props = defineProps({
   telemetry: {
@@ -117,10 +118,13 @@ function format(value, digits = 1) {
         <p class="mt-1 text-sm font-semibold">{{ format(telemetry.distance) }} m</p>
       </div>
 
-      <div class="rounded-xl border border-white/10 bg-black/40 px-3 py-2 backdrop-blur">
-        <p class="text-[9px] uppercase tracking-[0.16em] text-white/40">Score</p>
-        <p class="mt-1 text-sm font-semibold">{{ Math.round(Number(telemetry.score) || 0) }}</p>
+      <div v-if="FEATURES.score">
+        <div class="rounded-xl border border-white/10 bg-black/40 px-3 py-2 backdrop-blur">
+          <p class="text-[9px] uppercase tracking-[0.16em] text-white/40">Score</p>
+          <p class="mt-1 text-sm font-semibold">{{ Math.round(Number(telemetry.score) || 0) }}</p>
+        </div>
       </div>
+
     </div>
   </div>
 </template>
