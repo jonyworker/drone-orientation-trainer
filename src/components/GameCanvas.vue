@@ -2,7 +2,10 @@
 import * as THREE from 'three'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import FlightHUD from '@/components/hud/FlightHUD.vue'
+import ChallengeHUD from '@/components/challenge/ChallengeHUD.vue'
 import { FEATURES } from '@/config/features.js'
+import { challengeDefinitions } from '@/challenges/challengeDefinitions.js'
+import { ChallengeSystem } from '@/systems/ChallengeSystem.js'
 import { useKeyboardControls } from '@/composables/useKeyboardControls.js'
 import { CameraController } from '@/core/CameraController.js'
 import { DronePhysics } from '@/core/DronePhysics.js'
@@ -30,6 +33,11 @@ const emit = defineEmits([
 
 const canvasHost = ref(null)
 
+const selectedChallenge =
+  challengeDefinitions[0]
+
+const activeChallenge = ref(null)
+
 let renderer
 let scene
 let camera
@@ -46,6 +54,7 @@ const zoneSize = 12
 const windSystem = new WindSystem()
 const boundarySystem = new BoundarySystem(zoneSize)
 const scoreSystem = new ScoreSystem(zoneSize / 2)
+const challengeSystem = new ChallengeSystem()
 
 const { input, clearInput } = useKeyboardControls({
   onPause: togglePause,
@@ -178,11 +187,14 @@ function resetSimulation() {
 
   props.game.paused.value = false
 
-  physics.reset(
-    modeYaw(
-      props.settings.trainingMode,
-    ),
-  )
+  const initialYaw =
+    FEATURES.challenge
+      ? selectedChallenge.initialYaw
+      : modeYaw(
+        props.settings.trainingMode,
+      )
+
+  physics.reset(initialYaw)
 
   windSystem.reset(
     props.settings.windMode,
@@ -192,6 +204,17 @@ function resetSimulation() {
 
   if (FEATURES.score) {
     scoreSystem.reset()
+  }
+
+  if (FEATURES.challenge) {
+    activeChallenge.value =
+      challengeSystem.start(
+        selectedChallenge,
+        drone.position,
+      )
+  } else {
+    challengeSystem.reset()
+    activeChallenge.value = null
   }
 
   Object.assign(
@@ -265,6 +288,13 @@ function animate(timestamp) {
         drone.position,
       )
 
+    if (FEATURES.challenge) {
+      activeChallenge.value =
+        challengeSystem.update(
+          drone.position,
+        )
+    }
+
     Object.assign(
       telemetry,
       flight,
@@ -297,6 +327,7 @@ function animate(timestamp) {
     scene,
     camera,
   )
+
 }
 
 function dispose() {
@@ -391,6 +422,11 @@ onBeforeUnmount(dispose)
       :status-text="game.statusText.value"
       :wind-mode="settings.windMode"
       :camera-bearing="selected(cameraBearingOptions, settings.cameraBearing).degrees"
+    />
+
+    <ChallengeHUD
+      v-if="FEATURES.challenge"
+      :challenge="activeChallenge"
     />
 
     <div
