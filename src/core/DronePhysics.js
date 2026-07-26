@@ -46,7 +46,11 @@ export class DronePhysics {
     this.randomYawTimer = 0
 
     this.drone.position.set(0, 1.5, 0)
-    this.drone.rotation.set(0, yaw, 0)
+    this.drone.rotation.set(
+      0,
+      -yaw,
+      0,
+    )
   }
 
   update(
@@ -71,7 +75,7 @@ export class DronePhysics {
     const yawRate =
       THREE.MathUtils.degToRad(95)
 
-    this.state.yaw +=
+    this.state.yaw -=
       input.yaw
       * yawRate
       * safeDelta
@@ -113,7 +117,7 @@ export class DronePhysics {
       .copy(this.localAcceleration)
       .applyAxisAngle(
         UP_AXIS,
-        this.state.yaw,
+        -this.state.yaw,
       )
 
     /*
@@ -196,7 +200,7 @@ export class DronePhysics {
      */
     this.drone.rotation.set(
       this.state.pitchVisual,
-      this.state.yaw,
+      -this.state.yaw,
       this.state.rollVisual,
       'YXZ',
     )

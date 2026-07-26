@@ -2,6 +2,7 @@
 import * as THREE from 'three'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import FlightHUD from '@/components/hud/FlightHUD.vue'
+import CompassHUD from '@/components/hud/CompassHUD.vue'
 import ChallengeHUD from '@/components/challenge/ChallengeHUD.vue'
 import { FEATURES } from '@/config/features.js'
 import { challengeDefinitions } from '@/challenges/challengeDefinitions.js'
@@ -37,6 +38,7 @@ const selectedChallenge =
   challengeDefinitions[0]
 
 const activeChallenge = ref(null)
+const compassHeading = ref(0)
 
 let renderer
 let scene
@@ -74,8 +76,8 @@ function selected(options, value) {
 function modeYaw(mode) {
   if (mode === 'away') return 0
   if (mode === 'toward') return Math.PI
-  if (mode === 'left') return Math.PI / 2
-  if (mode === 'right') return -Math.PI / 2
+  if (mode === 'left') return -Math.PI / 2
+  if (mode === 'right') return Math.PI / 2
 
   if (mode === 'random') {
     return Math.random() * Math.PI * 2 - Math.PI
@@ -196,6 +198,12 @@ function resetSimulation() {
 
   physics.reset(initialYaw)
 
+  compassHeading.value =
+    (
+      THREE.MathUtils.radToDeg(initialYaw)
+      + 360
+    ) % 360
+
   windSystem.reset(
     props.settings.windMode,
   )
@@ -282,6 +290,12 @@ function animate(timestamp) {
       wind.acceleration,
       props.settings.trainingMode,
     )
+
+    compassHeading.value =
+      (
+        Number(flight.yaw ?? 0)
+        + 360
+      ) % 360
 
     const boundary =
       boundarySystem.update(
@@ -412,23 +426,44 @@ onBeforeUnmount(dispose)
   <div
     class="relative min-h-[580px] overflow-hidden rounded-3xl border border-white/10 bg-black shadow-2xl shadow-black/40"
   >
+    <!-- Three.js 畫面 -->
     <div
       ref="canvasHost"
       class="absolute inset-0"
     />
 
+    <!-- 飛行資訊 -->
     <FlightHUD
       :telemetry="game.telemetry"
       :status-text="game.statusText.value"
       :wind-mode="settings.windMode"
-      :camera-bearing="selected(cameraBearingOptions, settings.cameraBearing).degrees"
+      :camera-bearing="selected(
+        cameraBearingOptions,
+        settings.cameraBearing,
+      ).degrees"
     />
 
+    <!-- 挑戰資訊 -->
     <ChallengeHUD
       v-if="FEATURES.challenge"
       :challenge="activeChallenge"
     />
 
+    <!--
+      右上角 HUD 區域
+
+      方位針永遠排第一順位。
+      風向資訊若啟用，應排列在方位針下方。
+    -->
+    <div
+      class="pointer-events-none absolute right-4 top-4 z-30 flex flex-col items-end gap-3"
+    >
+      <CompassHUD
+        :heading="compassHeading"
+      />
+    </div>
+
+    <!-- 鏡頭說明 -->
     <div
       class="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/50 px-4 py-2 text-xs text-white/60 backdrop-blur"
     >

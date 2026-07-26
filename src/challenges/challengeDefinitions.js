@@ -7,7 +7,7 @@ export const challengeDefinitions = [
 		description:
 			'保持機頭朝東，先往北移動 3 公尺，再往南移動 3 公尺。',
 
-		// Three.js yaw：
+		// 航向定義（不是 Three.js rotation）
 		// 0            = 北
 		// Math.PI / 2  = 東
 		// Math.PI      = 南

@@ -1,4 +1,4 @@
 export const FEATURES = {
 	score: false,
-	challenge: true,
+	challenge: false,
 }
