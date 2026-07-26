@@ -89,6 +89,10 @@ function initScene() {
     antialias: true,
   })
 
+  renderer.domElement.style.width = '100%'
+  renderer.domElement.style.height = '100%'
+  renderer.domElement.style.display = 'block'
+
   renderer.setPixelRatio(
     Math.min(window.devicePixelRatio, 2),
   )
@@ -161,11 +165,7 @@ function resizeRenderer() {
 
   if (!width || !height) return
 
-  renderer.setSize(
-    width,
-    height,
-    false,
-  )
+  renderer.setSize(width, height)
 
   camera.aspect = width / height
   camera.updateProjectionMatrix()
