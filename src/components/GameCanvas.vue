@@ -1,6 +1,6 @@
 <script setup>
 import * as THREE from 'three'
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import FlightHUD from '@/components/hud/FlightHUD.vue'
 import CompassHUD from '@/components/hud/CompassHUD.vue'
 import ChallengeHUD from '@/components/challenge/ChallengeHUD.vue'
@@ -19,6 +19,7 @@ import { ScoreSystem } from '@/systems/ScoreSystem.js'
 import { WindSystem } from '@/systems/WindSystem.js'
 import { createPositionRing } from '@/three/createPositionRing.js'
 import { createDrone } from '@/three/createDrone.js'
+import { createChallengeTarget } from '@/three/createChallengeTarget.js'
 import { createScene } from '@/three/createScene.js'
 import { createTrainingGround } from '@/three/createTrainingGround.js'
 
@@ -40,11 +41,16 @@ const selectedChallenge =
 const activeChallenge = ref(null)
 const compassHeading = ref(0)
 
+const isChallengeMode = computed(
+  () => props.settings.trainingMode === 'randomHeading',
+)
+
 let renderer
 let scene
 let camera
 let drone
 let positionRing
+let challengeTarget
 let physics
 let cameraController
 let resizeObserver
@@ -126,6 +132,9 @@ function initScene() {
   positionRing = createPositionRing()
   scene.add(positionRing)
 
+  challengeTarget = createChallengeTarget()
+  scene.add(challengeTarget)
+
   physics = new DronePhysics(drone)
   cameraController = new CameraController(camera)
 
@@ -189,12 +198,19 @@ function resetSimulation() {
 
   props.game.paused.value = false
 
-  const initialYaw =
-    FEATURES.challenge
-      ? selectedChallenge.initialYaw
-      : modeYaw(
-        props.settings.trainingMode,
+  let initialYaw = modeYaw(
+    props.settings.trainingMode,
+  )
+
+  if (FEATURES.challenge && isChallengeMode.value) {
+    activeChallenge.value =
+      challengeSystem.start(
+        selectedChallenge,
+        new THREE.Vector3(0, 1.5, 0),
       )
+
+    initialYaw = challengeSystem.getHeadingRadians()
+  }
 
   physics.reset(initialYaw)
 
@@ -214,16 +230,12 @@ function resetSimulation() {
     scoreSystem.reset()
   }
 
-  if (FEATURES.challenge) {
-    activeChallenge.value =
-      challengeSystem.start(
-        selectedChallenge,
-        drone.position,
-      )
-  } else {
+  if (!FEATURES.challenge || !isChallengeMode.value) {
     challengeSystem.reset()
     activeChallenge.value = null
   }
+
+  updateChallengeTarget()
 
   Object.assign(
     props.game.telemetry,
@@ -262,6 +274,41 @@ function updatePositionRing() {
   )
 }
 
+function updateChallengeTarget() {
+  if (!challengeTarget) return
+
+  if (
+    !FEATURES.challenge
+    || !isChallengeMode.value
+    || !activeChallenge.value?.active
+  ) {
+    challengeTarget.visible = false
+    return
+  }
+
+  const target = challengeSystem.getTargetPosition()
+  challengeTarget.position.set(target.x, 0, target.z)
+  challengeTarget.visible = true
+}
+
+function advanceChallengeRound() {
+  physics.reset(0)
+
+  activeChallenge.value = challengeSystem.nextRound(
+    drone.position,
+  )
+
+  const yaw = challengeSystem.getHeadingRadians()
+  physics.reset(yaw)
+
+  compassHeading.value = (
+    THREE.MathUtils.radToDeg(yaw) + 360
+  ) % 360
+
+  updateChallengeTarget()
+  updatePositionRing()
+}
+
 function animate(timestamp) {
   animationFrame =
     requestAnimationFrame(animate)
@@ -284,11 +331,22 @@ function animate(timestamp) {
       telemetry.time,
     )
 
+    const flightInput = FEATURES.challenge && isChallengeMode.value
+      ? {
+          throttle: input.throttle,
+          yaw: 0,
+          pitch: input.pitch,
+          roll: input.roll,
+        }
+      : input
+
     const flight = physics.update(
       delta,
-      input,
+      flightInput,
       wind.acceleration,
-      props.settings.trainingMode,
+      FEATURES.challenge && isChallengeMode.value
+        ? 'free'
+        : props.settings.trainingMode,
     )
 
     compassHeading.value =
@@ -302,11 +360,16 @@ function animate(timestamp) {
         drone.position,
       )
 
-    if (FEATURES.challenge) {
+    if (FEATURES.challenge && isChallengeMode.value) {
       activeChallenge.value =
         challengeSystem.update(
+          delta,
           drone.position,
         )
+
+      if (challengeSystem.shouldAdvance()) {
+        advanceChallengeRound()
+      }
     }
 
     Object.assign(
@@ -336,6 +399,7 @@ function animate(timestamp) {
 
   // 即使暫停，也讓 Ring 維持正確位置
   updatePositionRing()
+  updateChallengeTarget()
 
   renderer.render(
     scene,
@@ -445,7 +509,7 @@ onBeforeUnmount(dispose)
 
     <!-- 挑戰資訊 -->
     <ChallengeHUD
-      v-if="FEATURES.challenge"
+      v-if="FEATURES.challenge && isChallengeMode"
       :challenge="activeChallenge"
     />
 

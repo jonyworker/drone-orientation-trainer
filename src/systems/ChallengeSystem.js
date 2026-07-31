@@ -1,157 +1,135 @@
 import * as THREE from 'three'
+import {
+  CARDINAL_HEADINGS,
+  WORLD_DIRECTIONS,
+} from '@/challenges/challengeDefinitions.js'
 
 export class ChallengeSystem {
-	constructor() {
-		this.challenge = null
+  constructor() {
+    this.challenge = null
+    this.heading = null
+    this.direction = null
+    this.startPosition = new THREE.Vector3()
+    this.targetPosition = new THREE.Vector3()
+    this.progress = 0
+    this.round = 0
+    this.phase = 'idle'
+    this.successTimer = 0
+    this.lastPair = ''
+  }
 
-		this.stepIndex = 0
-		this.stepStartPosition =
-			new THREE.Vector3()
+  start(challenge, position) {
+    this.challenge = challenge
+    this.round = 0
+    this.lastPair = ''
+    return this.nextRound(position)
+  }
 
-		this.progress = 0
-		this.completed = false
-	}
+  nextRound(position) {
+    if (!this.challenge) return this.getState()
 
-	start(challenge, position) {
-		this.challenge = challenge
-		this.stepIndex = 0
-		this.progress = 0
-		this.completed = false
+    let heading
+    let direction
+    let pair
 
-		this.stepStartPosition.copy(position)
+    do {
+      heading = randomItem(CARDINAL_HEADINGS)
+      direction = randomItem(WORLD_DIRECTIONS)
+      pair = `${heading.key}:${direction.key}`
+    } while (pair === this.lastPair)
 
-		return this.getState()
-	}
+    this.lastPair = pair
+    this.heading = heading
+    this.direction = direction
+    this.round += 1
+    this.progress = 0
+    this.phase = 'active'
+    this.successTimer = 0
+    this.startPosition.copy(position)
+    this.targetPosition.set(
+      position.x + direction.vector.x * this.challenge.distance,
+      position.y,
+      position.z + direction.vector.z * this.challenge.distance,
+    )
 
-	reset() {
-		this.challenge = null
-		this.stepIndex = 0
-		this.progress = 0
-		this.completed = false
+    return this.getState()
+  }
 
-		this.stepStartPosition.set(0, 0, 0)
+  reset() {
+    this.challenge = null
+    this.heading = null
+    this.direction = null
+    this.startPosition.set(0, 0, 0)
+    this.targetPosition.set(0, 0, 0)
+    this.progress = 0
+    this.round = 0
+    this.phase = 'idle'
+    this.successTimer = 0
+    this.lastPair = ''
+    return this.getState()
+  }
 
-		return this.getState()
-	}
+  update(delta, position) {
+    if (!this.challenge || !this.direction) return this.getState()
 
-	update(position) {
-		if (
-			!this.challenge
-			|| this.completed
-		) {
-			return this.getState()
-		}
+    if (this.phase === 'success') {
+      this.successTimer += delta
+      return this.getState()
+    }
 
-		const currentStep =
-			this.challenge.steps[this.stepIndex]
+    const displacement = position.clone().sub(this.startPosition)
+    const { x, z } = this.direction.vector
 
-		if (!currentStep) {
-			this.completed = true
-			return this.getState()
-		}
+    this.progress = Math.max(
+      0,
+      displacement.x * x + displacement.z * z,
+    )
 
-		const displacement =
-			position
-				.clone()
-				.sub(this.stepStartPosition)
+    if (this.progress >= this.challenge.distance) {
+      this.progress = this.challenge.distance
+      this.phase = 'success'
+      this.successTimer = 0
+    }
 
-		this.progress = Math.max(
-			0,
-			getDirectionalProgress(
-				displacement,
-				currentStep.direction,
-			),
-		)
+    return this.getState()
+  }
 
-		if (
-			this.progress
-			>= currentStep.distance
-		) {
-			this.stepIndex += 1
-			this.progress = 0
+  shouldAdvance() {
+    return (
+      this.phase === 'success'
+      && this.successTimer >= this.challenge.successDelay
+    )
+  }
 
-			/*
-			 * 下一步從目前位置開始計算。
-			 *
-			 * 例如：
-			 * 第一段往北 3 公尺完成後，
-			 * 第二段便從北方終點開始計算往南距離。
-			 */
-			this.stepStartPosition.copy(position)
+  getHeadingRadians() {
+    return this.heading?.radians ?? 0
+  }
 
-			if (
-				this.stepIndex
-				>= this.challenge.steps.length
-			) {
-				this.completed = true
-			}
-		}
+  getTargetPosition() {
+    return this.targetPosition
+  }
 
-		return this.getState()
-	}
-
-	getState() {
-		const currentStep =
-			this.challenge?.steps[this.stepIndex]
-			?? null
-
-		return {
-			active: Boolean(this.challenge),
-
-			id:
-				this.challenge?.id
-				?? null,
-
-			title:
-				this.challenge?.title
-				?? '',
-
-			description:
-				this.challenge?.description
-				?? '',
-
-			stepIndex:
-			this.stepIndex,
-
-			totalSteps:
-				this.challenge?.steps.length
-				?? 0,
-
-			currentStep:
-				currentStep?.label
-				?? '',
-
-			targetDistance:
-				currentStep?.distance
-				?? 0,
-
-			progress:
-			this.progress,
-
-			completed:
-			this.completed,
-		}
-	}
+  getState() {
+    return {
+      active: Boolean(this.challenge),
+      id: this.challenge?.id ?? null,
+      title: this.challenge?.title ?? '',
+      description: this.challenge?.description ?? '',
+      round: this.round,
+      phase: this.phase,
+      headingDegrees: this.heading?.degrees ?? 0,
+      headingLabel: this.heading?.label ?? '',
+      headingShortLabel: this.heading?.shortLabel ?? '',
+      targetDirection: this.direction?.key ?? '',
+      targetLabel: this.direction?.label ?? '',
+      targetArrow: this.direction?.arrow ?? '',
+      targetDistance: this.challenge?.distance ?? 0,
+      progress: this.progress,
+      completed: this.phase === 'success',
+    }
+  }
 }
 
-function getDirectionalProgress(
-	displacement,
-	direction,
-) {
-	switch (direction) {
-		case 'north':
-			return -displacement.z
-
-		case 'south':
-			return displacement.z
-
-		case 'east':
-			return displacement.x
-
-		case 'west':
-			return -displacement.x
-
-		default:
-			return 0
-	}
+function randomItem(items) {
+  return items[Math.floor(Math.random() * items.length)]
 }

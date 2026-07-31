@@ -23,16 +23,17 @@ export const windOptions = [
 
 export const trainingOptions = [
   { value: 'free', label: '自由練習' },
-  { value: 'away', label: '機尾朝向玩家' },
-  { value: 'toward', label: '機頭朝向玩家' },
-  { value: 'left', label: '機頭朝左 90°' },
-  { value: 'right', label: '機頭朝右 90°' },
-  { value: 'random', label: '隨機機頭方向' },
+  // { value: 'away', label: '機尾朝向玩家' },
+  // { value: 'toward', label: '機頭朝向玩家' },
+  // { value: 'left', label: '機頭朝左 90°' },
+  // { value: 'right', label: '機頭朝右 90°' },
+  // { value: 'random', label: '隨機機頭方向' },
+  { value: 'randomHeading', label: '方向訓練' },
 ]
 
 const state = reactive({
   cameraHeight: 'angled',
-  cameraBearing: 'diagonal',
+  cameraBearing: 'front',
   windMode: 'none',
   trainingMode: 'free',
   showHeadingArrow: true,

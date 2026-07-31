@@ -14,10 +14,10 @@ defineProps({ input: Object, settings: Object })
       <StickIndicator title="右桿" :x="input.roll" :y="input.pitch" x-label="Roll" y-label="Pitch" />
     </div>
     <div class="mt-4 grid grid-cols-2 gap-2 text-xs text-white/55">
-      <div class="rounded-xl bg-black/20 p-3"><strong class="text-white">W / S</strong><br>前後 Pitch</div>
-      <div class="rounded-xl bg-black/20 p-3"><strong class="text-white">A / D</strong><br>左右 Roll</div>
-      <div class="rounded-xl bg-black/20 p-3"><strong class="text-white">↑ / ↓</strong><br>升降 Throttle</div>
-      <div class="rounded-xl bg-black/20 p-3"><strong class="text-white">← / →</strong><br>旋轉 Yaw</div>
+      <div class="rounded-xl bg-black/20 p-3"><strong class="text-white">W / S</strong><br>升降 Throttle</div>
+      <div class="rounded-xl bg-black/20 p-3"><strong class="text-white">A / D</strong><br>旋轉 Yaw<span v-if="settings.trainingMode === 'randomHeading'">（本模式鎖定）</span></div>
+      <div class="rounded-xl bg-black/20 p-3"><strong class="text-white">↑ / ↓</strong><br>前後 Pitch</div>
+      <div class="rounded-xl bg-black/20 p-3"><strong class="text-white">← / →</strong><br>左右 Roll</div>
     </div>
   </section>
 </template>

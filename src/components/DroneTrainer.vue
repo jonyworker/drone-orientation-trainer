@@ -31,9 +31,9 @@ function registerActions(nextActions) {
         <aside class="flex flex-col gap-3">
           <TelemetryPanel :telemetry="game.telemetry" :wind-mode="settings.windMode" />
           <ControlsPanel :input="input" :settings="settings" />
-          <section class="rounded-2xl border border-lime-300/15 bg-lime-300/[0.04] p-4 text-sm text-white/65">
-            <p class="font-semibold text-lime-200">v0.2 Foundation</p>
-            <p class="mt-2 leading-6">相機、物理、風、邊界與計分已拆成獨立系統。後續加入中風、陣風、Lesson 與飛行分析時，不必再把所有邏輯塞進同一支 Vue 檔案。</p>
+          <section v-if="settings.trainingMode === 'randomHeading'" class="rounded-2xl border border-lime-300/15 bg-lime-300/[0.04] p-4 text-sm text-white/65">
+            <p class="font-semibold text-lime-200">v0.3 Random Heading</p>
+            <p class="mt-2 leading-6">機頭會在北、東、南、西之間隨機切換。請保持機頭不動，只用 Pitch／Roll 前往指定的世界方向，完成後立即進入下一題。</p>
           </section>
         </aside>
       </section>
