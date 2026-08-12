@@ -31,6 +31,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'input-ready',
+  'control-source-ready',
   'register-actions',
 ])
 
@@ -86,6 +87,12 @@ function getActiveInput() {
     ? gamepadInput
     : keyboardInput
 }
+
+const controlSource = computed(() =>
+  gamepadConnected.value
+    ? 'gamepad'
+    : 'keyboard',
+)
 
 const visualInput = reactive({
   throttle: 0.5,
@@ -488,6 +495,19 @@ watch(
       drone.userData.headingArrow.visible =
         visible
     }
+  },
+)
+
+watch(
+  controlSource,
+  (source) => {
+    emit(
+      'control-source-ready',
+      source,
+    )
+  },
+  {
+    immediate: true,
   },
 )
 
