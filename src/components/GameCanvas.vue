@@ -1,6 +1,6 @@
 <script setup>
 import * as THREE from 'three'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import FlightHUD from '@/components/hud/FlightHUD.vue'
 import CompassHUD from '@/components/hud/CompassHUD.vue'
 import ChallengeHUD from '@/components/challenge/ChallengeHUD.vue'
@@ -86,6 +86,13 @@ function getActiveInput() {
     ? gamepadInput
     : keyboardInput
 }
+
+const visualInput = reactive({
+  throttle: 0.5,
+  yaw: 0,
+  pitch: 0,
+  roll: 0,
+})
 
 function selected(options, value) {
   return (
@@ -348,6 +355,11 @@ function animate(timestamp) {
 
     const activeInput = getActiveInput()
 
+    Object.assign(
+      visualInput,
+      activeInput,
+    )
+
     const flightInput =
       FEATURES.challenge && isChallengeMode.value
         ? {
@@ -486,7 +498,7 @@ onMounted(async () => {
 
   emit(
     'input-ready',
-    keyboardInput,
+    visualInput,
   )
 
   emit(

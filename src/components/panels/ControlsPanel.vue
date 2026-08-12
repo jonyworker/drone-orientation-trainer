@@ -10,8 +10,21 @@ defineProps({ input: Object, settings: Object })
       <label class="flex items-center gap-2 text-xs text-white/55"><input v-model="settings.showHeadingArrow" type="checkbox" class="accent-lime-300">機頭箭頭</label>
     </div>
     <div class="grid grid-cols-2 gap-3">
-      <StickIndicator title="左桿" :x="input.yaw" :y="input.throttle" x-label="Yaw" y-label="Throttle" />
-      <StickIndicator title="右桿" :x="input.roll" :y="input.pitch" x-label="Roll" y-label="Pitch" />
+      <StickIndicator
+        title="左桿"
+        :x="-input.yaw"
+        :y="input.throttle * 2 - 1"
+        x-label="Yaw"
+        y-label="Throttle"
+      />
+
+      <StickIndicator
+        title="右桿"
+        :x="input.roll"
+        :y="input.pitch"
+        x-label="Roll"
+        y-label="Pitch"
+      />
     </div>
     <div class="mt-4 grid grid-cols-2 gap-2 text-xs text-white/55">
       <div class="rounded-xl bg-black/20 p-3"><strong class="text-white">W / S</strong><br>升降 Throttle</div>
