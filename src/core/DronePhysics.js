@@ -104,12 +104,24 @@ export class DronePhysics {
       )
 
     /*
-     * 搖桿輸入先以機體座標建立加速度，
-     * 再依目前 yaw 轉成世界座標。
+     * Throttle 現在使用 0 ~ 1。
+     *
+     * 0   = 最低油門
+     * 0.5 = 約略懸停油門
+     * 1   = 最大油門
+     *
+     * 目前先用 50% 當作簡化版懸停點。
+     * 之後如果要做更真實的重量、馬達推力模型，
+     * 再把 hoverThrottle 抽出去。
      */
+    const hoverThrottle = 0.5
+
+    const verticalInput =
+      (input.throttle - hoverThrottle) * 2
+
     this.localAcceleration.set(
       input.roll * 4.4,
-      input.throttle * 4.1,
+      verticalInput * 4.1,
       -input.pitch * 4.4,
     )
 
@@ -216,7 +228,7 @@ export class DronePhysics {
         rotor.userData.spinDirection
         * (
           18
-          + Math.abs(input.throttle) * 14
+          + input.throttle * 14
         )
         * safeDelta
     }

@@ -8,6 +8,7 @@ import { FEATURES } from '@/config/features.js'
 import { challengeDefinitions } from '@/challenges/challengeDefinitions.js'
 import { ChallengeSystem } from '@/systems/ChallengeSystem.js'
 import { useKeyboardControls } from '@/composables/useKeyboardControls.js'
+import { useGamepadControls } from '@/composables/useGamepadControls.js'
 import { CameraController } from '@/core/CameraController.js'
 import { DronePhysics } from '@/core/DronePhysics.js'
 import {
@@ -64,13 +65,27 @@ const boundarySystem = new BoundarySystem(zoneSize)
 const scoreSystem = new ScoreSystem(zoneSize / 2)
 const challengeSystem = new ChallengeSystem()
 
-const { input, clearInput } = useKeyboardControls({
+const {
+  input: keyboardInput,
+  clearInput: clearKeyboardInput,
+} = useKeyboardControls({
   onPause: togglePause,
   onReset: resetSimulation,
   onHelp: () => {
     props.settings.showHelp = !props.settings.showHelp
   },
 })
+
+const {
+  input: gamepadInput,
+  connected: gamepadConnected,
+} = useGamepadControls()
+
+function getActiveInput() {
+  return gamepadConnected.value
+    ? gamepadInput
+    : keyboardInput
+}
 
 function selected(options, value) {
   return (
@@ -194,7 +209,7 @@ function resizeRenderer() {
 function resetSimulation() {
   if (!physics) return
 
-  clearInput()
+  clearKeyboardInput()
 
   props.game.paused.value = false
 
@@ -261,7 +276,7 @@ function togglePause() {
   props.game.paused.value =
     !props.game.paused.value
 
-  clearInput()
+  clearKeyboardInput()
 }
 
 function updatePositionRing() {
@@ -331,14 +346,17 @@ function animate(timestamp) {
       telemetry.time,
     )
 
-    const flightInput = FEATURES.challenge && isChallengeMode.value
-      ? {
-          throttle: input.throttle,
+    const activeInput = getActiveInput()
+
+    const flightInput =
+      FEATURES.challenge && isChallengeMode.value
+        ? {
+          throttle: activeInput.throttle,
           yaw: 0,
-          pitch: input.pitch,
-          roll: input.roll,
+          pitch: activeInput.pitch,
+          roll: activeInput.roll,
         }
-      : input
+        : activeInput
 
     const flight = physics.update(
       delta,
@@ -468,7 +486,7 @@ onMounted(async () => {
 
   emit(
     'input-ready',
-    input,
+    keyboardInput,
   )
 
   emit(
