@@ -4,11 +4,13 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import FlightHUD from '@/components/hud/FlightHUD.vue'
 import CompassHUD from '@/components/hud/CompassHUD.vue'
 import ChallengeHUD from '@/components/challenge/ChallengeHUD.vue'
+import StickTrainingHUD from '@/components/training/StickTrainingHUD.vue'
 import { FEATURES } from '@/config/features.js'
 import { challengeDefinitions } from '@/challenges/challengeDefinitions.js'
 import { ChallengeSystem } from '@/systems/ChallengeSystem.js'
 import { useKeyboardControls } from '@/composables/useKeyboardControls.js'
 import { useGamepadControls } from '@/composables/useGamepadControls.js'
+import { useStickTraining } from '@/composables/useStickTraining.js'
 import { CameraController } from '@/core/CameraController.js'
 import { DronePhysics } from '@/core/DronePhysics.js'
 import {
@@ -100,6 +102,40 @@ const visualInput = reactive({
   pitch: 0,
   roll: 0,
 })
+
+const {
+  currentExercise,
+  completed: stickTrainingCompleted,
+  round: stickTrainingRound,
+
+  waitingForStartCenter:
+    stickTrainingWaitingForStartCenter,
+
+  waitingForCenter:
+    stickTrainingWaitingForCenter,
+
+  waitingForNextRound:
+    stickTrainingWaitingForNextRound,
+
+  errorType:
+    stickTrainingErrorType,
+
+  errorMessage:
+    stickTrainingErrorMessage,
+
+  successMin:
+    stickTrainingSuccessMin,
+
+  successMax:
+    stickTrainingSuccessMax,
+
+  successHoldProgress:
+    stickTrainingSuccessHoldProgress,
+
+  start: startStickTraining,
+  stop: stopStickTraining,
+  update: updateStickTraining,
+} = useStickTraining()
 
 function selected(options, value) {
   return (
@@ -367,15 +403,36 @@ function animate(timestamp) {
       activeInput,
     )
 
-    const flightInput =
-      FEATURES.challenge && isChallengeMode.value
-        ? {
-          throttle: activeInput.throttle,
-          yaw: 0,
-          pitch: activeInput.pitch,
-          roll: activeInput.roll,
-        }
-        : activeInput
+    if (
+      props.settings.trainingMode
+      === 'stickTraining'
+    ) {
+      updateStickTraining(activeInput)
+    }
+
+    let flightInput = activeInput
+
+    if (
+      props.settings.trainingMode
+      === 'stickTraining'
+    ) {
+      flightInput = {
+        throttle: 0.5,
+        yaw: 0,
+        pitch: 0,
+        roll: 0,
+      }
+    } else if (
+      FEATURES.challenge
+      && isChallengeMode.value
+    ) {
+      flightInput = {
+        throttle: activeInput.throttle,
+        yaw: 0,
+        pitch: activeInput.pitch,
+        roll: activeInput.roll,
+      }
+    }
 
     const flight = physics.update(
       delta,
@@ -511,6 +568,21 @@ watch(
   },
 )
 
+watch(
+  () => props.settings.trainingMode,
+  (mode) => {
+    if (mode === 'stickTraining') {
+      startStickTraining()
+      return
+    }
+
+    stopStickTraining()
+  },
+  {
+    immediate: true,
+  },
+)
+
 onMounted(async () => {
   await nextTick()
 
@@ -548,6 +620,10 @@ onBeforeUnmount(dispose)
 
     <!-- 飛行資訊 -->
     <FlightHUD
+      v-if="
+        settings.trainingMode
+        !== 'stickTraining'
+      "
       :telemetry="game.telemetry"
       :status-text="game.statusText.value"
       :wind-mode="settings.windMode"
@@ -563,6 +639,33 @@ onBeforeUnmount(dispose)
       :challenge="activeChallenge"
     />
 
+    <!-- 搖桿訓練 -->
+    <StickTrainingHUD
+      v-if="
+        settings.trainingMode
+        === 'stickTraining'
+      "
+          :exercise="currentExercise"
+          :completed="stickTrainingCompleted"
+          :waiting-for-start-center="
+        stickTrainingWaitingForStartCenter
+      "
+          :waiting-for-center="
+        stickTrainingWaitingForCenter
+      "
+          :waiting-for-next-round="
+        stickTrainingWaitingForNextRound
+      "
+          :round="stickTrainingRound"
+          :error-type="stickTrainingErrorType"
+          :error-message="stickTrainingErrorMessage"
+          :success-min="stickTrainingSuccessMin"
+          :success-max="stickTrainingSuccessMax"
+          :success-hold-progress="
+        stickTrainingSuccessHoldProgress
+      "
+    />
+
     <!--
       右上角 HUD 區域
 
@@ -570,6 +673,10 @@ onBeforeUnmount(dispose)
       風向資訊若啟用，應排列在方位針下方。
     -->
     <div
+      v-if="
+        settings.trainingMode
+        !== 'stickTraining'
+      "
       class="pointer-events-none absolute right-4 top-4 z-30 flex flex-col items-end gap-3"
     >
       <CompassHUD
@@ -579,6 +686,10 @@ onBeforeUnmount(dispose)
 
     <!-- 鏡頭說明 -->
     <div
+      v-if="
+        settings.trainingMode
+        !== 'stickTraining'
+      "
       class="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/50 px-4 py-2 text-xs text-white/60 backdrop-blur"
     >
       鏡頭只跟位置，不跟機頭旋轉

@@ -29,6 +29,7 @@ export const trainingOptions = [
   // { value: 'right', label: '機頭朝右 90°' },
   // { value: 'random', label: '隨機機頭方向' },
   { value: 'randomHeading', label: '方向訓練' },
+  { value: 'stickTraining', label: '搖桿訓練' },
 ]
 
 const state = reactive({
