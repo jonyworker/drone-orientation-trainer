@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import ControllerCalibrationPanel from '@/components/panels/ControllerCalibrationPanel.vue'
 import GameCanvas from '@/components/GameCanvas.vue'
 import ControlsPanel from '@/components/panels/ControlsPanel.vue'
 import ControllerDebugPanel from '@/components/panels/ControllerDebugPanel.vue'
@@ -25,6 +26,7 @@ const actions = ref({
 })
 
 const showControllerDebug = ref(false)
+const showControllerCalibration = ref(false)
 const controlSource = ref('keyboard')
 
 function receiveInput(source) {
@@ -50,6 +52,7 @@ function registerActions(nextActions) {
         @reset="actions.reset"
         @toggle-help="settings.showHelp = !settings.showHelp"
         @toggle-controller-debug="showControllerDebug = !showControllerDebug"
+        @toggle-controller-calibration="showControllerCalibration = !showControllerCalibration"
       />
 
       <section
@@ -58,6 +61,7 @@ function registerActions(nextActions) {
         <GameCanvas
           :settings="settings"
           :game="game"
+          :controller-calibrating="showControllerCalibration"
           @input-ready="receiveInput"
           @control-source-ready="receiveControlSource"
           @register-actions="registerActions"
@@ -102,6 +106,11 @@ function registerActions(nextActions) {
     <ControllerDebugPanel
       v-if="showControllerDebug"
       @close="showControllerDebug = false"
+    />
+
+    <ControllerCalibrationPanel
+      v-if="showControllerCalibration"
+      @close="showControllerCalibration = false"
     />
   </main>
 </template>

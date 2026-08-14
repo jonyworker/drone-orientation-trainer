@@ -1,5 +1,6 @@
 <script setup>
 import { useGamepadDiagnostics } from '@/composables/useGamepadDiagnostics.js'
+import { useControllerCalibration } from '@/composables/useControllerCalibration.js'
 
 const emit = defineEmits(['close'])
 
@@ -17,38 +18,51 @@ const {
   captureBaseline,
 } = useGamepadDiagnostics()
 
+const {
+  calibration,
+  normalizeAxis,
+} = useControllerCalibration()
+
 const axisLabels = {
   0: {
     name: 'Roll',
     description: '左移 / 右移',
+    calibrationKey: 'roll',
   },
   1: {
     name: 'Pitch',
     description: '後移 / 前移',
+    calibrationKey: 'pitch',
   },
   2: {
     name: 'Throttle',
     description: '下降 / 升高',
+    calibrationKey: 'throttle',
   },
   3: {
     name: 'Yaw',
     description: '左轉 / 右轉',
+    calibrationKey: 'yaw',
   },
   4: {
     name: 'SA',
     description: '兩段開關',
+    calibrationKey: null,
   },
   5: {
     name: 'SB',
     description: '三段開關',
+    calibrationKey: null,
   },
   6: {
     name: 'SC',
     description: '三段開關',
+    calibrationKey: null,
   },
   7: {
     name: 'SD',
     description: '兩段開關',
+    calibrationKey: null,
   },
 }
 
@@ -56,6 +70,7 @@ function getAxisLabel(index) {
   return axisLabels[index] ?? {
     name: 'Unknown',
     description: '尚未設定',
+    calibrationKey: null,
   }
 }
 
@@ -70,6 +85,53 @@ function axisPercent(value) {
       0,
       ((Number(value ?? 0) + 1) / 2) * 100,
     ),
+  )
+}
+
+function getCalibratedValue(index, rawValue) {
+  const axis =
+    getAxisLabel(index)
+
+  if (!axis.calibrationKey) {
+    return null
+  }
+
+  let value =
+    normalizeAxis(
+      axis.calibrationKey,
+      rawValue,
+    )
+
+  /*
+   * useGamepadControls 裡，
+   * Yaw 校正後還會再反轉一次：
+   *
+   * input.yaw =
+   *   -normalizeAxis('yaw', raw)
+   *
+   * 因此 Debug 也做相同處理，
+   * 才會顯示真正送進遊戲的數值。
+   */
+  if (axis.calibrationKey === 'yaw') {
+    value = -value
+  }
+
+  return value
+}
+
+function getSavedCalibration(index) {
+  const axis =
+    getAxisLabel(index)
+
+  if (!axis.calibrationKey) {
+    return null
+  }
+
+  return (
+    calibration.axes[
+      axis.calibrationKey
+      ]
+    ?? null
   )
 }
 </script>
@@ -104,12 +166,12 @@ function axisPercent(value) {
             <span
               class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45"
             >
-              v0.4
+              v0.5
             </span>
           </div>
 
           <p class="mt-1 text-xs leading-5 text-white/45">
-            讀取瀏覽器 Gamepad API 原始資料，不會控制無人機。
+            比較控制器原始輸入與校正後實際送進遊戲的數值。
           </p>
         </div>
 
@@ -123,7 +185,9 @@ function axisPercent(value) {
       </header>
 
       <!-- Scroll Area -->
-      <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+      <div
+        class="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6"
+      >
         <div
           v-if="!supported"
           class="rounded-xl border border-rose-300/20 bg-rose-300/10 p-3 text-sm leading-6 text-rose-100"
@@ -137,7 +201,9 @@ function axisPercent(value) {
           <div
             class="rounded-2xl border border-white/10 bg-black/25 p-4"
           >
-            <div class="flex items-center justify-between gap-3">
+            <div
+              class="flex items-center justify-between gap-3"
+            >
               <p
                 class="text-xs font-semibold uppercase tracking-[0.18em] text-white/40"
               >
@@ -205,8 +271,52 @@ function axisPercent(value) {
             </p>
           </div>
 
+          <!-- Calibration Status -->
+          <div
+            v-if="connected"
+            class="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-4"
+          >
+            <div class="flex-1">
+              <p
+                class="text-xs font-semibold uppercase tracking-[0.18em] text-white/40"
+              >
+                Calibration
+              </p>
+
+              <p class="mt-1 text-xs text-white/45">
+                遊戲控制會使用目前儲存的校正設定。
+              </p>
+            </div>
+
+            <div
+              class="flex items-center gap-2"
+            >
+              <span
+                class="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                :class="
+                  calibration.calibrated
+                    ? 'bg-lime-300/15 text-lime-200'
+                    : 'bg-amber-300/10 text-amber-100'
+                "
+              >
+                {{
+                  calibration.calibrated
+                    ? 'CALIBRATED'
+                    : 'DEFAULT'
+                }}
+              </span>
+
+              <span
+                class="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] text-white/50"
+              >
+                Deadzone
+                {{ Math.round(calibration.deadzone * 100) }}%
+              </span>
+            </div>
+          </div>
+
           <template v-if="connected">
-            <!-- Actions -->
+            <!-- Debug Actions -->
             <div class="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -234,10 +344,16 @@ function axisPercent(value) {
                 :key="index"
                 class="rounded-2xl border border-white/10 bg-black/20 p-4"
               >
-                <div class="flex items-start justify-between gap-3">
+                <div
+                  class="flex items-start justify-between gap-4"
+                >
                   <div>
-                    <div class="flex flex-wrap items-center gap-2">
-                      <p class="text-sm font-semibold text-white/80">
+                    <div
+                      class="flex flex-wrap items-center gap-2"
+                    >
+                      <p
+                        class="text-sm font-semibold text-white/80"
+                      >
                         AXIS {{ index }}
                       </p>
 
@@ -248,20 +364,62 @@ function axisPercent(value) {
                       </span>
                     </div>
 
-                    <p class="mt-1 text-[11px] text-white/40">
+                    <p
+                      class="mt-1 text-[11px] text-white/40"
+                    >
                       {{ getAxisLabel(index).description }}
                     </p>
                   </div>
 
+                  <!-- Raw / Calibrated -->
+                  <div
+                    v-if="getAxisLabel(index).calibrationKey"
+                    class="text-right"
+                  >
+                    <p
+                      class="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30"
+                    >
+                      RAW
+                    </p>
+
+                    <p
+                      class="mt-0.5 font-mono text-sm font-semibold tabular-nums text-white/65"
+                    >
+                      {{ formatValue(axis.current) }}
+                    </p>
+
+                    <p
+                      class="mt-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-lime-200/50"
+                    >
+                      CALIBRATED
+                    </p>
+
+                    <p
+                      class="mt-0.5 font-mono text-lg font-semibold tabular-nums text-lime-100"
+                    >
+                      {{
+                        formatValue(
+                          getCalibratedValue(
+                            index,
+                            axis.current,
+                          ),
+                        )
+                      }}
+                    </p>
+                  </div>
+
+                  <!-- Switch Axis -->
                   <p
+                    v-else
                     class="font-mono text-base font-semibold tabular-nums text-sky-100"
                   >
                     {{ formatValue(axis.current) }}
                   </p>
                 </div>
 
+                <!-- Raw Axis Bar -->
                 <div
-                  class="relative mt-3 h-2 overflow-hidden rounded-full bg-white/10"
+                  class="relative mt-4 h-2 overflow-hidden rounded-full bg-white/10"
                 >
                   <div
                     class="absolute inset-y-0 left-1/2 w-px bg-white/35"
@@ -275,11 +433,13 @@ function axisPercent(value) {
                   />
                 </div>
 
+                <!-- Diagnostic Range -->
                 <div
                   class="mt-3 grid grid-cols-3 gap-2 text-[11px] text-white/40"
                 >
                   <div>
-                    <p>MIN</p>
+                    <p>RAW MIN</p>
+
                     <p
                       class="mt-0.5 font-mono tabular-nums text-white/70"
                     >
@@ -289,6 +449,7 @@ function axisPercent(value) {
 
                   <div class="text-center">
                     <p>BASELINE</p>
+
                     <p
                       class="mt-0.5 font-mono tabular-nums text-white/70"
                     >
@@ -297,12 +458,86 @@ function axisPercent(value) {
                   </div>
 
                   <div class="text-right">
-                    <p>MAX</p>
+                    <p>RAW MAX</p>
+
                     <p
                       class="mt-0.5 font-mono tabular-nums text-white/70"
                     >
                       {{ formatValue(axis.max) }}
                     </p>
+                  </div>
+                </div>
+
+                <!-- Saved Calibration -->
+                <div
+                  v-if="
+                    getSavedCalibration(index)
+                    && getAxisLabel(index).calibrationKey
+                  "
+                  class="mt-4 border-t border-white/[0.07] pt-3"
+                >
+                  <p
+                    class="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30"
+                  >
+                    CALIBRATION PROFILE
+                  </p>
+
+                  <div
+                    class="mt-2 grid grid-cols-3 gap-2 text-[10px]"
+                  >
+                    <div>
+                      <p class="text-white/30">
+                        RAW MIN
+                      </p>
+
+                      <p
+                        class="mt-0.5 font-mono text-white/55"
+                      >
+                        {{
+                          formatValue(
+                            getSavedCalibration(index).min,
+                          )
+                        }}
+                      </p>
+                    </div>
+
+                    <div class="text-center">
+                      <p class="text-white/30">
+                        {{
+                          getAxisLabel(index).calibrationKey === 'throttle'
+                            ? 'CENTER'
+                            : 'CENTER'
+                        }}
+                      </p>
+
+                      <p
+                        class="mt-0.5 font-mono text-white/55"
+                      >
+                        {{
+                          getAxisLabel(index).calibrationKey === 'throttle'
+                            ? '—'
+                            : formatValue(
+                              getSavedCalibration(index).center,
+                            )
+                        }}
+                      </p>
+                    </div>
+
+                    <div class="text-right">
+                      <p class="text-white/30">
+                        RAW CENTER
+                      </p>
+
+                      <p
+                        class="mt-0.5 font-mono text-white/55"
+                      >
+                        {{
+                          formatValue(
+                            getSavedCalibration(index).max,
+                          )
+                        }}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -330,6 +565,7 @@ function axisPercent(value) {
                   "
                 >
                   <p>B{{ button.index }}</p>
+
                   <p class="mt-1 text-[10px]">
                     {{ formatValue(button.value) }}
                   </p>
@@ -339,12 +575,11 @@ function axisPercent(value) {
 
             <!-- Hint -->
             <div
-              class="mt-5 rounded-2xl border border-amber-200/15 bg-amber-200/[0.055] p-4 text-xs leading-5 text-amber-50/70"
+              class="mt-5 rounded-2xl border border-sky-300/15 bg-sky-300/[0.045] p-4 text-xs leading-5 text-sky-50/65"
             >
-              測量前先按「重置 Min / Max」。
-              接著一次只動一個方向到盡頭，再放回原位。
-              四個方向都測完後，把這個面板截圖給我，
-              我們就能建立 LiteRadio 的 Axis Mapping。
+              RAW 是瀏覽器直接取得的 Gamepad 原始值；
+              CALIBRATED 是經過中立點、操作範圍與 Deadzone 修正後，
+              實際提供給遊戲控制的數值。
             </div>
           </template>
         </template>

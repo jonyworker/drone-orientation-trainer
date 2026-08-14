@@ -29,6 +29,11 @@ import { createTrainingGround } from '@/three/createTrainingGround.js'
 const props = defineProps({
   settings: Object,
   game: Object,
+
+  controllerCalibrating: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits([
@@ -401,7 +406,10 @@ function animate(timestamp) {
 
   lastTimestamp = timestamp
 
-  if (!props.game.paused.value) {
+  if (
+    !props.game.paused.value
+    && !props.controllerCalibrating
+  ) {
     const telemetry =
       props.game.telemetry
 

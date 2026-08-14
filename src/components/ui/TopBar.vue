@@ -7,7 +7,13 @@ import {
 } from '@/stores/settingsStore.js'
 
 const props = defineProps({ settings: Object, paused: Boolean })
-const emit = defineEmits(['toggle-pause', 'reset', 'toggle-help', 'toggle-controller-debug'])
+const emit = defineEmits([
+  'toggle-pause',
+  'reset',
+  'toggle-help',
+  'toggle-controller-debug',
+  'toggle-controller-calibration',
+])
 </script>
 
 <template>
@@ -30,10 +36,34 @@ const emit = defineEmits(['toggle-pause', 'reset', 'toggle-help', 'toggle-contro
         </select>
       </label>
 
-      <button class="rounded-xl border border-sky-300/20 bg-sky-300/10 px-4 py-2 text-sm text-sky-100 hover:bg-sky-300/15" @click="emit('toggle-controller-debug')">🎮 遙控器診斷</button>
-      <button class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10" @click="emit('toggle-help')">操作說明</button>
-      <button class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10" @click="emit('toggle-pause')">{{ paused ? '繼續' : '暫停' }}</button>
-      <button class="rounded-xl bg-lime-300 px-4 py-2 text-sm font-semibold text-black hover:bg-lime-200" @click="emit('reset')">重置</button>
+      <button
+        class="rounded-xl border border-lime-300/20 bg-lime-300/10 px-4 py-2 text-sm text-lime-100 hover:bg-lime-300/15"
+        @click="emit('toggle-controller-calibration')"
+      >
+        🎯 控制器校正
+      </button>
+
+      <button
+        class="rounded-xl border border-sky-300/20 bg-sky-300/10 px-4 py-2 text-sm text-sky-100 hover:bg-sky-300/15"
+        @click="emit('toggle-controller-debug')"
+      >
+        🎮 遙控器診斷
+      </button>
+      <button
+        class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
+        @click="emit('toggle-help')">
+        操作說明
+      </button>
+      <button
+        class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
+        @click="emit('toggle-pause')">
+        {{ paused ? '繼續' : '暫停' }}
+      </button>
+      <button
+        class="rounded-xl bg-lime-300 px-4 py-2 text-sm font-semibold text-black hover:bg-lime-200"
+        @click="emit('reset')">
+        重置
+      </button>
     </div>
   </header>
 </template>
