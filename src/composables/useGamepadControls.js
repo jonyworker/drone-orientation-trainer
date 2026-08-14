@@ -5,7 +5,7 @@ import {
 	ref,
 } from 'vue'
 
-const DEADZONE = 0.02
+import { useControllerCalibration } from '@/composables/useControllerCalibration.js'
 
 /*
  * 目前 BETAFPV LiteRadio 2 SIM 的實測 Mapping
@@ -15,9 +15,17 @@ const DEADZONE = 0.02
  * AXIS 2 → Throttle
  * AXIS 3 → Yaw
  *
- * 注意：
- * 這份 Mapping 目前只是 LiteRadio 2 SIM 的設定。
- * 未來會抽成可校正 / 可更換的 Controller Mapping。
+ * 這裡只負責：
+ * 「哪一個實體 Axis 對應哪個飛行控制」
+ *
+ * Axis 的：
+ *
+ * - Min
+ * - Center
+ * - Max
+ * - Deadzone
+ *
+ * 則交給 useControllerCalibration 處理。
  */
 const LITERADIO_MAPPING = {
 	roll: 0,
@@ -26,72 +34,37 @@ const LITERADIO_MAPPING = {
 	yaw: 3,
 }
 
-/*
- * Roll / Pitch / Yaw 使用 Deadzone。
- *
- * 例如：
- *
- * raw = -0.0005
- *
- * 因為落在 ±0.02 內，
- * 最後輸出直接視為 0。
- *
- * 超過 Deadzone 後重新縮放，
- * 避免出現一小段沒有反應的跳躍。
- */
-function applyDeadzone(value, deadzone = DEADZONE) {
-	const raw = Number(value ?? 0)
-
-	if (Math.abs(raw) <= deadzone) {
-		return 0
-	}
-
-	const sign = Math.sign(raw)
-
-	return (
-		sign
-		* (
-			(Math.abs(raw) - deadzone)
-			/ (1 - deadzone)
-		)
-	)
-}
-
-/*
- * 確保數值永遠在指定範圍。
- */
-function clamp(value, min, max) {
-	return Math.min(
-		max,
-		Math.max(min, value),
-	)
-}
-
 export function useGamepadControls() {
 	const connected = ref(false)
 	const gamepadId = ref('')
 	const gamepadIndex = ref(null)
 
 	/*
-	 * 這是之後 DronePhysics 會吃的統一格式。
+	 * 所有 Gamepad 原始數值都會先經過：
 	 *
-	 * Roll / Pitch / Yaw：
+	 * useControllerCalibration
+	 *
+	 * 再提供給遊戲。
+	 */
+	const {
+		normalizeAxis,
+	} = useControllerCalibration()
+
+	/*
+	 * DronePhysics / GameCanvas
+	 * 最後收到的統一格式：
+	 *
+	 * Roll
 	 * -1 ~ +1
 	 *
-	 * Throttle：
-	 * 目前暫時保留 -1 ~ +1。
+	 * Pitch
+	 * -1 ~ +1
 	 *
-	 * 為什麼不現在改成 0 ~ 1？
-	 * 因為你目前 DronePhysics 的 throttle
-	 * 是用：
+	 * Yaw
+	 * -1 ~ +1
 	 *
-	 * input.throttle * 4.1
-	 *
-	 * 也就是：
-	 * + 值 = 上升
-	 * - 值 = 下降
-	 *
-	 * 我們先保持和既有物理系統完全一致。
+	 * Throttle
+	 * 0 ~ 1
 	 */
 	const input = reactive({
 		throttle: 0,
@@ -125,7 +98,8 @@ export function useGamepadControls() {
 		}
 
 		/*
-		 * 否則找第一支至少有 4 個 Axis 的控制器。
+		 * 否則尋找第一支至少有 4 個 Axis
+		 * 的控制器。
 		 */
 		return (
 			Array
@@ -156,65 +130,98 @@ export function useGamepadControls() {
 		gamepadIndex.value = gamepad.index
 
 		/*
-		 * LiteRadio 實測：
+		 * ------------------------------------------------
+		 * ROLL
+		 * ------------------------------------------------
 		 *
-		 * AXIS 0
-		 * -1 = 左
-		 * +1 = 右
+		 * LiteRadio AXIS 0
+		 *
+		 * - = 左
+		 * + = 右
+		 *
+		 * Raw Gamepad
+		 *      ↓
+		 * Calibration
+		 *      ↓
+		 * -1 ~ +1
 		 */
 		input.roll =
-			applyDeadzone(
+			normalizeAxis(
+				'roll',
 				gamepad.axes[
 					LITERADIO_MAPPING.roll
 					],
 			)
 
 		/*
-		 * AXIS 1
-		 * -1 = 後
-		 * +1 = 前
+		 * ------------------------------------------------
+		 * PITCH
+		 * ------------------------------------------------
+		 *
+		 * LiteRadio AXIS 1
+		 *
+		 * - = 後
+		 * + = 前
 		 */
 		input.pitch =
-			applyDeadzone(
+			normalizeAxis(
+				'pitch',
 				gamepad.axes[
 					LITERADIO_MAPPING.pitch
 					],
 			)
 
 		/*
-		 * AXIS 3
-		 * -1 = 左轉
-		 * +1 = 右轉
+		 * ------------------------------------------------
+		 * YAW
+		 * ------------------------------------------------
+		 *
+		 * LiteRadio AXIS 3
+		 *
+		 * 瀏覽器回傳的方向，
+		 * 和目前模擬器使用的 Yaw 方向相反。
+		 *
+		 * 因此：
+		 *
+		 * 先校正 Raw Axis，
+		 * 再反轉輸出。
+		 *
+		 * 注意：
+		 * 這個負號不能移除。
 		 */
 		input.yaw =
-			-applyDeadzone(
+			-normalizeAxis(
+				'yaw',
 				gamepad.axes[
 					LITERADIO_MAPPING.yaw
 					],
 			)
 
 		/*
-		 * AXIS 2
+		 * ------------------------------------------------
+		 * THROTTLE
+		 * ------------------------------------------------
 		 *
-		 * -1 = 油門最低
-		 * +1 = 油門最高
+		 * LiteRadio AXIS 2
 		 *
-		 * Throttle 不回中，
-		 * 所以絕對不能套 Deadzone。
+		 * 實體 Throttle 不回中。
+		 *
+		 * Calibration 會將：
+		 *
+		 * 實際最低點 → 0
+		 * 實際最高點 → 1
+		 *
+		 * 因此這裡不再需要：
+		 *
+		 * (rawThrottle + 1) / 2
 		 */
-		const rawThrottle =
-			clamp(
-				Number(
-					gamepad.axes[
-						LITERADIO_MAPPING.throttle
-						] ?? -1,
-				),
-				-1,
-				1,
-			)
-
 		input.throttle =
-			(rawThrottle + 1) / 2
+			normalizeAxis(
+				'throttle',
+				gamepad.axes[
+					LITERADIO_MAPPING.throttle
+					],
+			)
 	}
 
 	function update() {
@@ -227,7 +234,9 @@ export function useGamepadControls() {
 	function handleConnected(event) {
 		/*
 		 * 先記錄裝置。
-		 * 下一個 animation frame 就會開始讀取。
+		 *
+		 * 下一個 animation frame
+		 * 就會開始讀取。
 		 */
 		if (
 			event.gamepad.axes.length >= 4
