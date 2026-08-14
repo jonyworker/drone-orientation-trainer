@@ -49,6 +49,22 @@ const isChallengeMode = computed(
   () => props.settings.trainingMode === 'randomHeading',
 )
 
+const isStickTraining = computed(() =>
+  props.settings.trainingMode
+    .startsWith('stickTraining'),
+)
+
+const stickTrainingLevel = computed(() => {
+  if (
+    props.settings.trainingMode
+    === 'stickTraining2'
+  ) {
+    return 2
+  }
+
+  return 1
+})
+
 let renderer
 let scene
 let camera
@@ -135,7 +151,7 @@ const {
   start: startStickTraining,
   stop: stopStickTraining,
   update: updateStickTraining,
-} = useStickTraining()
+} = useStickTraining(stickTrainingLevel,)
 
 function selected(options, value) {
   return (
@@ -403,19 +419,13 @@ function animate(timestamp) {
       activeInput,
     )
 
-    if (
-      props.settings.trainingMode
-      === 'stickTraining'
-    ) {
+    if (isStickTraining.value) {
       updateStickTraining(activeInput)
     }
 
     let flightInput = activeInput
 
-    if (
-      props.settings.trainingMode
-      === 'stickTraining'
-    ) {
+    if (isStickTraining.value) {
       flightInput = {
         throttle: 0.5,
         yaw: 0,
@@ -570,8 +580,8 @@ watch(
 
 watch(
   () => props.settings.trainingMode,
-  (mode) => {
-    if (mode === 'stickTraining') {
+  () => {
+    if (isStickTraining.value) {
       startStickTraining()
       return
     }
@@ -620,10 +630,7 @@ onBeforeUnmount(dispose)
 
     <!-- 飛行資訊 -->
     <FlightHUD
-      v-if="
-        settings.trainingMode
-        !== 'stickTraining'
-      "
+      v-if="!isStickTraining"
       :telemetry="game.telemetry"
       :status-text="game.statusText.value"
       :wind-mode="settings.windMode"
@@ -641,27 +648,24 @@ onBeforeUnmount(dispose)
 
     <!-- 搖桿訓練 -->
     <StickTrainingHUD
-      v-if="
-        settings.trainingMode
-        === 'stickTraining'
-      "
-          :exercise="currentExercise"
-          :completed="stickTrainingCompleted"
-          :waiting-for-start-center="
+      v-if="isStickTraining"
+      :exercise="currentExercise"
+      :completed="stickTrainingCompleted"
+      :waiting-for-start-center="
         stickTrainingWaitingForStartCenter
       "
-          :waiting-for-center="
+      :waiting-for-center="
         stickTrainingWaitingForCenter
       "
-          :waiting-for-next-round="
+      :waiting-for-next-round="
         stickTrainingWaitingForNextRound
       "
-          :round="stickTrainingRound"
-          :error-type="stickTrainingErrorType"
-          :error-message="stickTrainingErrorMessage"
-          :success-min="stickTrainingSuccessMin"
-          :success-max="stickTrainingSuccessMax"
-          :success-hold-progress="
+      :round="stickTrainingRound"
+      :error-type="stickTrainingErrorType"
+      :error-message="stickTrainingErrorMessage"
+      :success-min="stickTrainingSuccessMin"
+      :success-max="stickTrainingSuccessMax"
+      :success-hold-progress="
         stickTrainingSuccessHoldProgress
       "
     />
@@ -673,10 +677,7 @@ onBeforeUnmount(dispose)
       風向資訊若啟用，應排列在方位針下方。
     -->
     <div
-      v-if="
-        settings.trainingMode
-        !== 'stickTraining'
-      "
+      v-if="!isStickTraining"
       class="pointer-events-none absolute right-4 top-4 z-30 flex flex-col items-end gap-3"
     >
       <CompassHUD
@@ -686,10 +687,7 @@ onBeforeUnmount(dispose)
 
     <!-- 鏡頭說明 -->
     <div
-      v-if="
-        settings.trainingMode
-        !== 'stickTraining'
-      "
+      v-if="!isStickTraining"
       class="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/50 px-4 py-2 text-xs text-white/60 backdrop-blur"
     >
       鏡頭只跟位置，不跟機頭旋轉

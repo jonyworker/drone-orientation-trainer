@@ -1,18 +1,40 @@
 import {
 	ref,
+	watch,
 } from 'vue'
 
 const WRONG_INPUT_THRESHOLD = 0.20
 const CENTER_THRESHOLD = 0.10
 
 /*
- * Level 1 成功區間
+ * Level 1
  *
- * 正確方向的操作落在 20%～40%
- * 才進入成功區。
+ * 固定成功區：
+ * 40%～60%
  */
-const SUCCESS_MIN = 0.40
-const SUCCESS_MAX = 0.60
+const LEVEL_1_SUCCESS_MIN = 0.40
+const LEVEL_1_SUCCESS_MAX = 0.60
+
+/*
+ * Level 2
+ *
+ * 目標幅度只先使用：
+ * 25% / 50% / 75%
+ */
+const LEVEL_2_TARGETS = [
+	0.25,
+	0.50,
+	0.75,
+]
+
+/*
+ * Level 2 容許誤差 ±5%
+ *
+ * 25% → 20～30%
+ * 50% → 45～55%
+ * 75% → 70～80%
+ */
+const LEVEL_2_TOLERANCE = 0.05
 
 /*
  * 必須連續停留在成功區多久，
@@ -95,7 +117,17 @@ const axisLabels = {
 	yaw: 'Yaw',
 }
 
-export function useStickTraining() {
+function randomItem(items) {
+	return items[
+		Math.floor(
+			Math.random() * items.length,
+		)
+		]
+}
+
+export function useStickTraining(
+	levelSource,
+) {
 	const currentExercise = ref(null)
 	const completed = ref(false)
 	const round = ref(0)
@@ -108,6 +140,33 @@ export function useStickTraining() {
 	const errorMessage = ref('')
 
 	/*
+	 * 目前這一題的成功區間。
+	 *
+	 * Level 1：
+	 * 固定 40～60%
+	 *
+	 * Level 2：
+	 * 依照隨機目標動態變化。
+	 */
+	const successMin = ref(
+		LEVEL_1_SUCCESS_MIN,
+	)
+
+	const successMax = ref(
+		LEVEL_1_SUCCESS_MAX,
+	)
+
+	/*
+	 * Level 2 題目目標。
+	 *
+	 * Level 1 時為 null。
+	 *
+	 * Level 2 例如：
+	 * 0.25 / 0.50 / 0.75
+	 */
+	const targetValue = ref(null)
+
+	/*
 	 * 0～1
 	 *
 	 * 代表目前已經在成功區內
@@ -117,12 +176,21 @@ export function useStickTraining() {
 
 	let nextTimer = null
 	let previousExerciseId = null
+	let previousTargetValue = null
 
 	/*
 	 * performance.now() 的開始時間。
 	 * null 表示目前尚未進入成功區。
 	 */
 	let successHoldStartedAt = null
+
+	function getLevel() {
+		return Number(
+			levelSource?.value
+			?? levelSource
+			?? 1,
+		)
+	}
 
 	function clearError() {
 		errorType.value = null
@@ -139,6 +207,58 @@ export function useStickTraining() {
 	function resetSuccessHold() {
 		successHoldStartedAt = null
 		successHoldProgress.value = 0
+	}
+
+	function resetTargetRange() {
+		const level = getLevel()
+
+		/*
+		 * Level 2
+		 */
+		if (level === 2) {
+			const availableTargets =
+				LEVEL_2_TARGETS.filter(
+					value =>
+						value !== previousTargetValue,
+				)
+
+			const target =
+				randomItem(
+					availableTargets.length
+						? availableTargets
+						: LEVEL_2_TARGETS,
+				)
+
+			previousTargetValue = target
+			targetValue.value = target
+
+			successMin.value =
+				Math.max(
+					0,
+					target
+					- LEVEL_2_TOLERANCE,
+				)
+
+			successMax.value =
+				Math.min(
+					1,
+					target
+					+ LEVEL_2_TOLERANCE,
+				)
+
+			return
+		}
+
+		/*
+		 * Level 1
+		 */
+		targetValue.value = null
+
+		successMin.value =
+			LEVEL_1_SUCCESS_MIN
+
+		successMax.value =
+			LEVEL_1_SUCCESS_MAX
 	}
 
 	function isStickCentered(input) {
@@ -168,18 +288,30 @@ export function useStickTraining() {
 			)
 
 		const exercise =
-			available[
-				Math.floor(
-					Math.random()
-					* available.length,
-				)
-				]
+			randomItem(
+				available.length
+					? available
+					: exercises,
+			)
 
 		previousExerciseId = exercise.id
+
+		resetTargetRange()
 
 		currentExercise.value = {
 			...exercise,
 			currentValue: 0,
+
+			/*
+			 * HUD 之後可以直接使用這個值。
+			 *
+			 * Level 1 = null
+			 *
+			 * Level 2 =
+			 * 0.25 / 0.50 / 0.75
+			 */
+			targetValue:
+			targetValue.value,
 		}
 
 		completed.value = false
@@ -215,6 +347,7 @@ export function useStickTraining() {
 
 		round.value = 0
 		previousExerciseId = null
+		previousTargetValue = null
 
 		completed.value = false
 
@@ -224,6 +357,7 @@ export function useStickTraining() {
 
 		clearError()
 		resetSuccessHold()
+		resetTargetRange()
 	}
 
 	function stop() {
@@ -304,7 +438,8 @@ export function useStickTraining() {
 		 */
 		if (waitingForCenter.value) {
 			if (isStickCentered(input)) {
-				waitingForCenter.value = false
+				waitingForCenter.value =
+					false
 
 				resetSuccessHold()
 				scheduleNextRound()
@@ -329,14 +464,6 @@ export function useStickTraining() {
 
 		/*
 		 * 將正確方向統一轉成正值。
-		 *
-		 * 例如：
-		 *
-		 * YAW RIGHT
-		 * raw = -0.30
-		 * direction = -1
-		 *
-		 * directionalValue = 0.30
 		 */
 		const directionalValue =
 			rawValue * exercise.direction
@@ -382,11 +509,11 @@ export function useStickTraining() {
 		}
 
 		/*
-		 * 超過成功區上限。
+		 * 超過目前成功區上限。
 		 */
 		if (
 			directionalValue
-			> SUCCESS_MAX
+			> successMax.value
 		) {
 			resetSuccessHold()
 
@@ -400,11 +527,11 @@ export function useStickTraining() {
 		}
 
 		/*
-		 * 還沒進入成功區。
+		 * 尚未進入目前成功區。
 		 */
 		if (
 			directionalValue
-			< SUCCESS_MIN
+			< successMin.value
 		) {
 			resetSuccessHold()
 			clearError()
@@ -413,21 +540,12 @@ export function useStickTraining() {
 		}
 
 		/*
-		 * 已經進入成功區：
-		 *
-		 * SUCCESS_MIN
-		 * ≤ directionalValue
-		 * ≤ SUCCESS_MAX
-		 *
-		 * 從這裡開始計算停留時間。
+		 * 已進入成功區。
 		 */
 		clearError()
 
 		const now = performance.now()
 
-		/*
-		 * 第一次進入成功區。
-		 */
 		if (successHoldStartedAt === null) {
 			successHoldStartedAt = now
 		}
@@ -443,7 +561,7 @@ export function useStickTraining() {
 			)
 
 		/*
-		 * 還沒有在成功區維持滿 500ms。
+		 * 還沒保持滿 1 秒。
 		 */
 		if (
 			heldDuration
@@ -453,7 +571,7 @@ export function useStickTraining() {
 		}
 
 		/*
-		 * 已連續保持成功區 500ms。
+		 * 成功。
 		 */
 		successHoldProgress.value = 1
 
@@ -461,6 +579,20 @@ export function useStickTraining() {
 		waitingForCenter.value = true
 
 		clearError()
+	}
+
+	/*
+	 * 如果使用者直接從 Lv.1
+	 * 切到 Lv.2，或反過來，
+	 * 重新開始訓練流程。
+	 */
+	if (levelSource?.value !== undefined) {
+		watch(
+			levelSource,
+			() => {
+				start()
+			},
+		)
 	}
 
 	return {
@@ -475,8 +607,10 @@ export function useStickTraining() {
 		errorType,
 		errorMessage,
 
-		successMin: SUCCESS_MIN,
-		successMax: SUCCESS_MAX,
+		successMin,
+		successMax,
+		targetValue,
+
 		successHoldProgress,
 
 		start,

@@ -99,6 +99,34 @@ const progressPercent =
     ),
   )
 
+/*
+ * Level 2 的目標幅度。
+ *
+ * Level 1：
+ * targetValue = null
+ * → 不顯示
+ *
+ * Level 2：
+ * targetValue = 0.25
+ * → 顯示 25%
+ */
+const targetPercent =
+  computed(() => {
+    const value =
+      props.exercise?.targetValue
+
+    if (
+      value === null
+      || value === undefined
+    ) {
+      return null
+    }
+
+    return Math.round(
+      Number(value) * 100,
+    )
+  })
+
 const successMinPercent =
   computed(() =>
     Math.round(
@@ -231,13 +259,20 @@ const cursorState =
       <template v-else-if="exercise">
         <!-- 指令 -->
         <div
-          class="flex items-center justify-center gap-3"
+          class="flex items-baseline justify-center gap-3"
         >
           <h2
             class="text-xl font-black tracking-[0.08em] text-white"
           >
             {{ exercise.title }}
           </h2>
+
+          <span
+            v-if="targetPercent !== null"
+            class="font-mono text-lg font-semibold tabular-nums text-lime-200"
+          >
+            {{ targetPercent }}%
+          </span>
         </div>
 
         <!-- 控制尺 -->
