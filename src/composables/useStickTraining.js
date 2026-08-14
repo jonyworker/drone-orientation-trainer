@@ -96,7 +96,7 @@ const exercises = [
 		title: 'YAW LEFT',
 		label: '左轉',
 		stick: '左搖桿',
-		arrow: '←',
+		arrow: '↺',
 		instruction: '將左搖桿向左推',
 	},
 	{
@@ -106,7 +106,7 @@ const exercises = [
 		title: 'YAW RIGHT',
 		label: '右轉',
 		stick: '左搖桿',
-		arrow: '→',
+		arrow: '↻',
 		instruction: '將左搖桿向右推',
 	},
 ]

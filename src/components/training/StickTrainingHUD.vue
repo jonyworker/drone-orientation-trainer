@@ -127,6 +127,18 @@ const targetPercent =
     )
   })
 
+/*
+ * Level 1 沒有指定 targetValue，
+ * 因此顯示方向提示圖示。
+ *
+ * Level 2 開始指定 25 / 50 / 75%，
+ * 此時拿掉圖示，讓使用者自行回想操作方向。
+ */
+const showDirectionHint =
+  computed(() =>
+    targetPercent.value === null,
+  )
+
 const successMinPercent =
   computed(() =>
     Math.round(
@@ -259,7 +271,7 @@ const cursorState =
       <template v-else-if="exercise">
         <!-- 指令 -->
         <div
-          class="flex items-baseline justify-center gap-3"
+          class="flex items-center justify-center gap-3"
         >
           <h2
             class="text-xl font-black tracking-[0.08em] text-white"
@@ -267,8 +279,17 @@ const cursorState =
             {{ exercise.title }}
           </h2>
 
+          <!-- Level 1：方向提示 -->
           <span
-            v-if="targetPercent !== null"
+            v-if="showDirectionHint"
+            class="text-xl font-medium leading-none text-white/55"
+          >
+            {{ exercise.arrow }}
+          </span>
+
+          <!-- Level 2：指定幅度 -->
+          <span
+            v-else
             class="font-mono text-lg font-semibold tabular-nums text-lime-200"
           >
             {{ targetPercent }}%
