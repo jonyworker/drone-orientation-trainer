@@ -177,7 +177,7 @@ function getSavedCalibration(index) {
 
         <button
           type="button"
-          class="shrink-0 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/55 transition hover:bg-white/10 hover:text-white"
+          class="shrink-0 rounded-xl border border-white/10 bg-white/3 px-3 py-2 text-xs text-white/55 transition hover:bg-white/10 hover:text-white"
           @click="emit('close')"
         >
           關閉
@@ -307,7 +307,7 @@ function getSavedCalibration(index) {
               </span>
 
               <span
-                class="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] text-white/50"
+                class="rounded-full border border-white/10 bg-white/3 px-2.5 py-1 text-[10px] text-white/50"
               >
                 Deadzone
                 {{ Math.round(calibration.deadzone * 100) }}%
@@ -575,7 +575,7 @@ function getSavedCalibration(index) {
 
             <!-- Hint -->
             <div
-              class="mt-5 rounded-2xl border border-sky-300/15 bg-sky-300/[0.045] p-4 text-xs leading-5 text-sky-50/65"
+              class="mt-5 rounded-2xl border border-sky-300/15 bg-sky-300/4.5 p-4 text-xs leading-5 text-sky-50/65"
             >
               RAW 是瀏覽器直接取得的 Gamepad 原始值；
               CALIBRATED 是經過中立點、操作範圍與 Deadzone 修正後，

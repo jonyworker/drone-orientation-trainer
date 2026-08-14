@@ -81,7 +81,7 @@ function registerActions(nextActions) {
 
           <section
             v-if="settings.trainingMode === 'randomHeading'"
-            class="rounded-2xl border border-lime-300/15 bg-lime-300/[0.04] p-4 text-sm text-white/65"
+            class="rounded-2xl border border-lime-300/15 bg-lime-300/4 p-4 text-sm text-white/65"
           >
             <p class="font-semibold text-lime-200">
               v0.3 Random Heading

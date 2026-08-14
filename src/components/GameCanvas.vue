@@ -628,7 +628,7 @@ onBeforeUnmount(dispose)
 
 <template>
   <div
-    class="relative min-h-[580px] overflow-hidden rounded-3xl border border-white/10 bg-black shadow-2xl shadow-black/40"
+    class="relative min-h-145 overflow-hidden rounded-3xl border border-white/10 bg-black shadow-2xl shadow-black/40"
   >
     <!-- Three.js 畫面 -->
     <div

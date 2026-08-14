@@ -367,7 +367,7 @@ onBeforeUnmount(() => {
 
         <button
           type="button"
-          class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/55 hover:bg-white/10 hover:text-white"
+          class="rounded-xl border border-white/10 bg-white/3 px-3 py-2 text-xs text-white/55 hover:bg-white/10 hover:text-white"
           @click="emit('close')"
         >
           關閉
@@ -380,7 +380,7 @@ onBeforeUnmount(() => {
         <!-- 未連線 -->
         <div
           v-if="!connected"
-          class="rounded-2xl border border-amber-200/15 bg-amber-200/[0.055] p-5 text-sm leading-6 text-amber-50/70"
+          class="rounded-2xl border border-amber-200/15 bg-amber-200/5.5 p-5 text-sm leading-6 text-amber-50/70"
         >
           尚未偵測到控制器。
 
@@ -485,7 +485,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div
-              class="mt-5 rounded-2xl border border-sky-300/15 bg-sky-300/[0.045] p-4 text-sm leading-6 text-sky-50/65"
+              class="mt-5 rounded-2xl border border-sky-300/15 bg-sky-300/4.5 p-4 text-sm leading-6 text-sky-50/65"
             >
               這裡顯示的是控制器原始數值。
               中立位置不一定剛好是
@@ -531,7 +531,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div
-              class="mt-5 rounded-2xl border border-lime-300/15 bg-lime-300/[0.04] p-4 text-sm leading-6 text-lime-50/70"
+              class="mt-5 rounded-2xl border border-lime-300/15 bg-lime-300/4 p-4 text-sm leading-6 text-lime-50/70"
             >
               建議將右搖桿沿著外圈完整繞一圈，
               再把左搖桿的 Yaw 左右推到底，
@@ -659,7 +659,7 @@ onBeforeUnmount(() => {
 
               <button
                 type="button"
-                class="flex-[2] rounded-2xl px-5 py-3 text-sm font-semibold transition"
+                class="flex-2 rounded-2xl px-5 py-3 text-sm font-semibold transition"
                 :class="
                   allRangesReady()
                     ? 'bg-lime-300 text-slate-950 hover:bg-lime-200'
@@ -821,7 +821,7 @@ onBeforeUnmount(() => {
 
               <button
                 type="button"
-                class="flex-[2] rounded-2xl bg-lime-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-lime-200"
+                class="flex-2 rounded-2xl bg-lime-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-lime-200"
                 @click="saveCalibration"
               >
                 儲存校正
@@ -830,7 +830,7 @@ onBeforeUnmount(() => {
 
             <div
               v-else
-              class="mt-6 rounded-2xl border border-lime-300/20 bg-lime-300/[0.06] p-5 text-center"
+              class="mt-6 rounded-2xl border border-lime-300/20 bg-lime-300/6 p-5 text-center"
             >
               <div
                 class="mx-auto grid h-12 w-12 place-items-center rounded-full bg-lime-300/15 text-xl text-lime-200"
