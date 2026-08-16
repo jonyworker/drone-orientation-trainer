@@ -38,6 +38,10 @@ export const trainingOptions = [
     value: 'stickTraining2',
     label: '搖桿訓練 Lv.2',
   },
+  {
+    value: 'stabilityTraining1',
+    label: '穩定控制 Lv.1',
+  },
 ]
 
 const state = reactive({

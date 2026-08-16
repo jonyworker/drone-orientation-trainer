@@ -1,30 +1,51 @@
 <script setup>
 import * as THREE from 'three'
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue'
+
 import FlightHUD from '@/components/hud/FlightHUD.vue'
 import CompassHUD from '@/components/hud/CompassHUD.vue'
 import ChallengeHUD from '@/components/challenge/ChallengeHUD.vue'
 import StickTrainingHUD from '@/components/training/StickTrainingHUD.vue'
+import StabilityTrainingHUD from '@/components/training/StabilityTrainingHUD.vue'
+
 import { FEATURES } from '@/config/features.js'
-import { challengeDefinitions } from '@/challenges/challengeDefinitions.js'
+
+import {
+  CARDINAL_HEADINGS,
+  challengeDefinitions,
+} from '@/challenges/challengeDefinitions.js'
+
 import { ChallengeSystem } from '@/systems/ChallengeSystem.js'
 import { useKeyboardControls } from '@/composables/useKeyboardControls.js'
 import { useGamepadControls } from '@/composables/useGamepadControls.js'
 import { useStickTraining } from '@/composables/useStickTraining.js'
+
 import { CameraController } from '@/core/CameraController.js'
 import { DronePhysics } from '@/core/DronePhysics.js'
+
 import {
   cameraBearingOptions,
   cameraHeightOptions,
 } from '@/stores/settingsStore.js'
+
 import { BoundarySystem } from '@/systems/BoundarySystem.js'
 import { ScoreSystem } from '@/systems/ScoreSystem.js'
 import { WindSystem } from '@/systems/WindSystem.js'
+
 import { createPositionRing } from '@/three/createPositionRing.js'
 import { createDrone } from '@/three/createDrone.js'
 import { createChallengeTarget } from '@/three/createChallengeTarget.js'
 import { createScene } from '@/three/createScene.js'
 import { createTrainingGround } from '@/three/createTrainingGround.js'
+import { createStabilityZone } from '@/three/createStabilityZone.js'
 
 const props = defineProps({
   settings: Object,
@@ -50,13 +71,41 @@ const selectedChallenge =
 const activeChallenge = ref(null)
 const compassHeading = ref(0)
 
+const stabilityHeading = ref(null)
+
+const stabilityOutside = ref(false)
+const stabilityDistance = ref(0)
+
+const stabilityInsideTime = ref(0)
+const stabilityOutsideTime = ref(0)
+
+const STABILITY_DURATION = 120
+
+const stabilityPhase = ref('running')
+const stabilityElapsedTime = ref(0)
+
+const stabilityRemainingTime = computed(() =>
+  Math.max(
+    0,
+    STABILITY_DURATION
+    - stabilityElapsedTime.value,
+  ),
+)
+
 const isChallengeMode = computed(
-  () => props.settings.trainingMode === 'randomHeading',
+  () =>
+    props.settings.trainingMode
+    === 'randomHeading',
 )
 
 const isStickTraining = computed(() =>
   props.settings.trainingMode
     .startsWith('stickTraining'),
+)
+
+const isStabilityTraining = computed(() =>
+  props.settings.trainingMode
+    .startsWith('stabilityTraining'),
 )
 
 const stickTrainingLevel = computed(() => {
@@ -75,6 +124,7 @@ let scene
 let camera
 let drone
 let positionRing
+let stabilityZone
 let challengeTarget
 let physics
 let cameraController
@@ -83,11 +133,19 @@ let animationFrame
 let lastTimestamp = 0
 
 const zoneSize = 12
+const stabilityZoneRadius = 2.5
 
-const windSystem = new WindSystem()
-const boundarySystem = new BoundarySystem(zoneSize)
-const scoreSystem = new ScoreSystem(zoneSize / 2)
-const challengeSystem = new ChallengeSystem()
+const windSystem =
+  new WindSystem()
+
+const boundarySystem =
+  new BoundarySystem(zoneSize)
+
+const scoreSystem =
+  new ScoreSystem(zoneSize / 2)
+
+const challengeSystem =
+  new ChallengeSystem()
 
 const {
   input: keyboardInput,
@@ -95,8 +153,10 @@ const {
 } = useKeyboardControls({
   onPause: togglePause,
   onReset: resetSimulation,
+
   onHelp: () => {
-    props.settings.showHelp = !props.settings.showHelp
+    props.settings.showHelp =
+      !props.settings.showHelp
   },
 })
 
@@ -117,6 +177,72 @@ const controlSource = computed(() =>
     : 'keyboard',
 )
 
+const stabilityTimeLabel = computed(() =>
+  formatStabilityTime(
+    stabilityRemainingTime.value,
+  ),
+)
+
+const stabilityResult = computed(() => {
+  const total =
+    stabilityInsideTime.value
+    + stabilityOutsideTime.value
+
+  const stability =
+    total > 0
+      ? (
+      stabilityInsideTime.value
+      / total
+    ) * 100
+      : 0
+
+  return {
+    heading:
+    stabilityHeading.value,
+
+    total,
+
+    inside:
+    stabilityInsideTime.value,
+
+    outside:
+    stabilityOutsideTime.value,
+
+    stability,
+  }
+})
+
+const stabilityTotalLabel =
+  computed(() =>
+    formatStabilityResultTime(
+      stabilityResult.value.total,
+    ),
+  )
+
+const stabilityInsideLabel =
+  computed(() =>
+    formatStabilityResultTime(
+      stabilityResult.value.inside,
+    ),
+  )
+
+const stabilityOutsideLabel =
+  computed(() =>
+    formatStabilityResultTime(
+      stabilityResult.value.outside,
+    ),
+  )
+
+const stabilityPercentLabel =
+  computed(() =>
+    `${stabilityResult.value.stability.toFixed(1)}%`,
+  )
+
+const stabilityHeadingLabel =
+  computed(() =>
+    getStabilityHeadingLabel(),
+  )
+
 const visualInput = reactive({
   throttle: 0.5,
   yaw: 0,
@@ -126,8 +252,12 @@ const visualInput = reactive({
 
 const {
   currentExercise,
-  completed: stickTrainingCompleted,
-  round: stickTrainingRound,
+
+  completed:
+    stickTrainingCompleted,
+
+  round:
+    stickTrainingRound,
 
   waitingForStartCenter:
     stickTrainingWaitingForStartCenter,
@@ -153,104 +283,345 @@ const {
   successHoldProgress:
     stickTrainingSuccessHoldProgress,
 
-  start: startStickTraining,
-  stop: stopStickTraining,
-  update: updateStickTraining,
-} = useStickTraining(stickTrainingLevel,)
+  start:
+    startStickTraining,
 
-function selected(options, value) {
+  stop:
+    stopStickTraining,
+
+  update:
+    updateStickTraining,
+} = useStickTraining(
+  stickTrainingLevel,
+)
+
+function getStabilityHeadingLabel() {
+  const heading =
+    stabilityHeading.value
+
+  if (!heading) {
+    return '-'
+  }
+
+  const degrees =
+    (
+      THREE.MathUtils.radToDeg(
+        heading.radians,
+      )
+      + 360
+    ) % 360
+
+  if (degrees === 0) {
+    return 'NORTH ↑'
+  }
+
+  if (degrees === 90) {
+    return 'EAST →'
+  }
+
+  if (degrees === 180) {
+    return 'SOUTH ↓'
+  }
+
+  if (degrees === 270) {
+    return 'WEST ←'
+  }
+
+  return `${Math.round(degrees)}°`
+}
+
+function selected(
+  options,
+  value,
+) {
   return (
-    options.find((option) => option.value === value)
+    options.find(
+      (option) =>
+        option.value === value,
+    )
     ?? options[0]
   )
 }
 
+function randomCardinalHeading() {
+  return CARDINAL_HEADINGS[
+    Math.floor(
+      Math.random()
+      * CARDINAL_HEADINGS.length,
+    )
+    ]
+}
+
 function modeYaw(mode) {
-  if (mode === 'away') return 0
-  if (mode === 'toward') return Math.PI
-  if (mode === 'left') return -Math.PI / 2
-  if (mode === 'right') return Math.PI / 2
+  if (mode === 'away') {
+    return 0
+  }
+
+  if (mode === 'toward') {
+    return Math.PI
+  }
+
+  if (mode === 'left') {
+    return -Math.PI / 2
+  }
+
+  if (mode === 'right') {
+    return Math.PI / 2
+  }
 
   if (mode === 'random') {
-    return Math.random() * Math.PI * 2 - Math.PI
+    return (
+      Math.random()
+      * Math.PI
+      * 2
+      - Math.PI
+    )
   }
 
   return physics?.state.yaw ?? 0
 }
 
 function initScene() {
-  scene = createScene()
+  scene =
+    createScene()
 
-  camera = new THREE.PerspectiveCamera(
-    48,
-    1,
-    0.1,
-    100,
-  )
+  camera =
+    new THREE.PerspectiveCamera(
+      48,
+      1,
+      0.1,
+      100,
+    )
 
-  renderer = new THREE.WebGLRenderer({
-    antialias: true,
-  })
+  renderer =
+    new THREE.WebGLRenderer({
+      antialias: true,
+    })
 
-  renderer.domElement.style.width = '100%'
-  renderer.domElement.style.height = '100%'
-  renderer.domElement.style.display = 'block'
+  renderer.domElement.style.width =
+    '100%'
+
+  renderer.domElement.style.height =
+    '100%'
+
+  renderer.domElement.style.display =
+    'block'
 
   renderer.setPixelRatio(
-    Math.min(window.devicePixelRatio, 2),
+    Math.min(
+      window.devicePixelRatio,
+      2,
+    ),
   )
 
-  renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap
-  renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.shadowMap.enabled =
+    true
+
+  renderer.shadowMap.type =
+    THREE.PCFSoftShadowMap
+
+  renderer.outputColorSpace =
+    THREE.SRGBColorSpace
 
   canvasHost.value.appendChild(
     renderer.domElement,
   )
 
-  createTrainingGround(scene, zoneSize)
+  createTrainingGround(
+    scene,
+    zoneSize,
+  )
 
-  // 注意：這裡不要再寫 const drone
-  drone = createDrone()
-  scene.add(drone)
+  drone =
+    createDrone()
 
-  // 注意：這裡不要再寫 const positionRing
-  positionRing = createPositionRing()
-  scene.add(positionRing)
+  scene.add(
+    drone,
+  )
 
-  challengeTarget = createChallengeTarget()
-  scene.add(challengeTarget)
+  positionRing =
+    createPositionRing()
 
-  physics = new DronePhysics(drone)
-  cameraController = new CameraController(camera)
+  scene.add(
+    positionRing,
+  )
+
+  stabilityZone =
+    createStabilityZone(
+      stabilityZoneRadius,
+    )
+
+  stabilityZone.position.set(
+    0,
+    0,
+    0,
+  )
+
+  scene.add(
+    stabilityZone,
+  )
+
+  challengeTarget =
+    createChallengeTarget()
+
+  scene.add(
+    challengeTarget,
+  )
+
+  physics =
+    new DronePhysics(
+      drone,
+    )
+
+  cameraController =
+    new CameraController(
+      camera,
+    )
 
   applyCamera(true)
+
   resetSimulation()
+
   resizeRenderer()
 
-  resizeObserver = new ResizeObserver(
-    resizeRenderer,
-  )
+  resizeObserver =
+    new ResizeObserver(
+      resizeRenderer,
+    )
 
   resizeObserver.observe(
     canvasHost.value,
   )
 }
 
-function applyCamera(immediate = false) {
-  if (!cameraController) return
+function updateStabilityBoundary() {
+  if (
+    !isStabilityTraining.value
+    || !drone
+  ) {
+    stabilityOutside.value =
+      false
+
+    stabilityDistance.value =
+      0
+
+    return
+  }
+
+  const distance =
+    Math.hypot(
+      drone.position.x,
+      drone.position.z,
+    )
+
+  stabilityDistance.value =
+    distance
+
+  stabilityOutside.value =
+    distance
+    > stabilityZoneRadius
+}
+
+function updateStabilityScore(
+  delta,
+) {
+  if (
+    !isStabilityTraining.value
+    || stabilityPhase.value
+    !== 'running'
+  ) {
+    return
+  }
+
+  const remaining =
+    STABILITY_DURATION
+    - stabilityElapsedTime.value
+
+  const countedDelta =
+    Math.min(
+      delta,
+      Math.max(
+        0,
+        remaining,
+      ),
+    )
+
+  if (countedDelta > 0) {
+    if (
+      stabilityOutside.value
+    ) {
+      stabilityOutsideTime.value +=
+        countedDelta
+    } else {
+      stabilityInsideTime.value +=
+        countedDelta
+    }
+
+    stabilityElapsedTime.value +=
+      countedDelta
+  }
+
+  const finished =
+    stabilityElapsedTime.value
+    >= STABILITY_DURATION
+    - 0.0001
+
+  if (finished) {
+    stabilityElapsedTime.value =
+      STABILITY_DURATION
+
+    const totalRecorded =
+      stabilityInsideTime.value
+      + stabilityOutsideTime.value
+
+    const correction =
+      STABILITY_DURATION
+      - totalRecorded
+
+    if (
+      Math.abs(correction) > 0
+    ) {
+      if (
+        stabilityOutside.value
+      ) {
+        stabilityOutsideTime.value +=
+          correction
+      } else {
+        stabilityInsideTime.value +=
+          correction
+      }
+    }
+
+    stabilityPhase.value =
+      'finished'
+  }
+}
+
+function applyCamera(
+  immediate = false,
+) {
+  if (!cameraController) {
+    return
+  }
 
   cameraController.setPreset(
     selected(
       cameraHeightOptions,
       props.settings.cameraHeight,
     ),
+
     selected(
       cameraBearingOptions,
       props.settings.cameraBearing,
     ),
+
     drone?.position
-    ?? new THREE.Vector3(0, 1.5, 0),
+    ?? new THREE.Vector3(
+      0,
+      1.5,
+      0,
+    ),
+
     immediate,
   )
 }
@@ -267,42 +638,84 @@ function resizeRenderer() {
   const {
     clientWidth: width,
     clientHeight: height,
-  } = canvasHost.value
+  } =
+    canvasHost.value
 
-  if (!width || !height) return
+  if (
+    !width
+    || !height
+  ) {
+    return
+  }
 
-  renderer.setSize(width, height)
+  renderer.setSize(
+    width,
+    height,
+  )
 
-  camera.aspect = width / height
+  camera.aspect =
+    width / height
+
   camera.updateProjectionMatrix()
 }
 
 function resetSimulation() {
-  if (!physics) return
+  if (!physics) {
+    return
+  }
 
   clearKeyboardInput()
 
-  props.game.paused.value = false
+  props.game.paused.value =
+    false
 
-  let initialYaw = modeYaw(
-    props.settings.trainingMode,
-  )
+  let initialYaw =
+    modeYaw(
+      props.settings.trainingMode,
+    )
 
-  if (FEATURES.challenge && isChallengeMode.value) {
+  if (
+    isStabilityTraining.value
+  ) {
+    stabilityHeading.value =
+      randomCardinalHeading()
+
+    initialYaw =
+      stabilityHeading.value
+        .radians
+
+    resetStabilityScore()
+  }
+
+  if (
+    FEATURES.challenge
+    && isChallengeMode.value
+  ) {
     activeChallenge.value =
       challengeSystem.start(
         selectedChallenge,
-        new THREE.Vector3(0, 1.5, 0),
+
+        new THREE.Vector3(
+          0,
+          1.5,
+          0,
+        ),
       )
 
-    initialYaw = challengeSystem.getHeadingRadians()
+    initialYaw =
+      challengeSystem
+        .getHeadingRadians()
   }
 
-  physics.reset(initialYaw)
+  physics.reset(
+    initialYaw,
+  )
 
   compassHeading.value =
     (
-      THREE.MathUtils.radToDeg(initialYaw)
+      THREE.MathUtils.radToDeg(
+        initialYaw,
+      )
       + 360
     ) % 360
 
@@ -316,9 +729,14 @@ function resetSimulation() {
     scoreSystem.reset()
   }
 
-  if (!FEATURES.challenge || !isChallengeMode.value) {
+  if (
+    !FEATURES.challenge
+    || !isChallengeMode.value
+  ) {
     challengeSystem.reset()
-    activeChallenge.value = null
+
+    activeChallenge.value =
+      null
   }
 
   updateChallengeTarget()
@@ -340,6 +758,9 @@ function resetSimulation() {
   )
 
   updatePositionRing()
+
+  updateStabilityZone()
+
   applyCamera(true)
 }
 
@@ -350,8 +771,22 @@ function togglePause() {
   clearKeyboardInput()
 }
 
+function updateStabilityZone() {
+  if (!stabilityZone) {
+    return
+  }
+
+  stabilityZone.visible =
+    isStabilityTraining.value
+}
+
 function updatePositionRing() {
-  if (!drone || !positionRing) return
+  if (
+    !drone
+    || !positionRing
+  ) {
+    return
+  }
 
   positionRing.position.set(
     drone.position.x,
@@ -361,50 +796,97 @@ function updatePositionRing() {
 }
 
 function updateChallengeTarget() {
-  if (!challengeTarget) return
+  if (!challengeTarget) {
+    return
+  }
 
   if (
     !FEATURES.challenge
     || !isChallengeMode.value
     || !activeChallenge.value?.active
   ) {
-    challengeTarget.visible = false
+    challengeTarget.visible =
+      false
+
     return
   }
 
-  const target = challengeSystem.getTargetPosition()
-  challengeTarget.position.set(target.x, 0, target.z)
-  challengeTarget.visible = true
+  const target =
+    challengeSystem
+      .getTargetPosition()
+
+  challengeTarget.position.set(
+    target.x,
+    0,
+    target.z,
+  )
+
+  challengeTarget.visible =
+    true
 }
 
 function advanceChallengeRound() {
   physics.reset(0)
 
-  activeChallenge.value = challengeSystem.nextRound(
-    drone.position,
+  activeChallenge.value =
+    challengeSystem.nextRound(
+      drone.position,
+    )
+
+  const yaw =
+    challengeSystem
+      .getHeadingRadians()
+
+  physics.reset(
+    yaw,
   )
 
-  const yaw = challengeSystem.getHeadingRadians()
-  physics.reset(yaw)
-
-  compassHeading.value = (
-    THREE.MathUtils.radToDeg(yaw) + 360
-  ) % 360
+  compassHeading.value =
+    (
+      THREE.MathUtils.radToDeg(
+        yaw,
+      )
+      + 360
+    ) % 360
 
   updateChallengeTarget()
+
   updatePositionRing()
+}
+
+function resetStabilityScore() {
+  stabilityInsideTime.value =
+    0
+
+  stabilityOutsideTime.value =
+    0
+
+  stabilityElapsedTime.value =
+    0
+
+  stabilityPhase.value =
+    'running'
 }
 
 function animate(timestamp) {
   animationFrame =
-    requestAnimationFrame(animate)
+    requestAnimationFrame(
+      animate,
+    )
 
-  const delta = Math.min(
-    (timestamp - lastTimestamp) / 1000 || 0,
-    0.033,
-  )
+  const delta =
+    Math.min(
+      (
+        timestamp
+        - lastTimestamp
+      ) / 1000
+      || 0,
 
-  lastTimestamp = timestamp
+      0.033,
+    )
+
+  lastTimestamp =
+    timestamp
 
   if (
     !props.game.paused.value
@@ -413,27 +895,37 @@ function animate(timestamp) {
     const telemetry =
       props.game.telemetry
 
-    telemetry.time += delta
+    telemetry.time +=
+      delta
 
-    const wind = windSystem.update(
-      delta,
-      telemetry.time,
-    )
+    const wind =
+      windSystem.update(
+        delta,
+        telemetry.time,
+      )
 
-    const activeInput = getActiveInput()
+    const activeInput =
+      getActiveInput()
 
     Object.assign(
       visualInput,
       activeInput,
     )
 
-    if (isStickTraining.value) {
-      updateStickTraining(activeInput)
+    if (
+      isStickTraining.value
+    ) {
+      updateStickTraining(
+        activeInput,
+      )
     }
 
-    let flightInput = activeInput
+    let flightInput =
+      activeInput
 
-    if (isStickTraining.value) {
+    if (
+      isStickTraining.value
+    ) {
       flightInput = {
         throttle: 0.5,
         yaw: 0,
@@ -441,29 +933,68 @@ function animate(timestamp) {
         roll: 0,
       }
     } else if (
+      isStabilityTraining.value
+    ) {
+      if (
+        stabilityPhase.value
+        === 'running'
+      ) {
+        flightInput = {
+          throttle: 0.5,
+          yaw: 0,
+          pitch:
+          activeInput.pitch,
+          roll:
+          activeInput.roll,
+        }
+      } else {
+        flightInput = {
+          throttle: 0.5,
+          yaw: 0,
+          pitch: 0,
+          roll: 0,
+        }
+      }
+    } else if (
       FEATURES.challenge
       && isChallengeMode.value
     ) {
       flightInput = {
-        throttle: activeInput.throttle,
+        throttle:
+        activeInput.throttle,
+
         yaw: 0,
-        pitch: activeInput.pitch,
-        roll: activeInput.roll,
+
+        pitch:
+        activeInput.pitch,
+
+        roll:
+        activeInput.roll,
       }
     }
 
-    const flight = physics.update(
-      delta,
-      flightInput,
-      wind.acceleration,
-      FEATURES.challenge && isChallengeMode.value
+    const physicsTrainingMode =
+      (
+        FEATURES.challenge
+        && isChallengeMode.value
+      )
+      || isStabilityTraining.value
         ? 'free'
-        : props.settings.trainingMode,
-    )
+        : props.settings.trainingMode
+
+    const flight =
+      physics.update(
+        delta,
+        flightInput,
+        wind.acceleration,
+        physicsTrainingMode,
+      )
 
     compassHeading.value =
       (
-        Number(flight.yaw ?? 0)
+        Number(
+          flight.yaw ?? 0,
+        )
         + 360
       ) % 360
 
@@ -472,14 +1003,44 @@ function animate(timestamp) {
         drone.position,
       )
 
-    if (FEATURES.challenge && isChallengeMode.value) {
+    updateStabilityBoundary()
+
+    updateStabilityScore(
+      delta,
+    )
+
+    const ringMaterial =
+      stabilityZone
+        ?.userData
+        ?.ringMaterial
+
+    if (ringMaterial) {
+      ringMaterial.color.set(
+        stabilityOutside.value
+          ? 0xff5c5c
+          : 0xffffff,
+      )
+
+      ringMaterial.opacity =
+        stabilityOutside.value
+          ? 0.95
+          : 0.55
+    }
+
+    if (
+      FEATURES.challenge
+      && isChallengeMode.value
+    ) {
       activeChallenge.value =
         challengeSystem.update(
           delta,
           drone.position,
         )
 
-      if (challengeSystem.shouldAdvance()) {
+      if (
+        challengeSystem
+          .shouldAdvance()
+      ) {
         advanceChallengeRound()
       }
     }
@@ -488,20 +1049,28 @@ function animate(timestamp) {
       telemetry,
       flight,
       {
-        outside: boundary.outside,
-        boundaryCount: boundary.count,
-        windSpeed: wind.speed,
-        windDirection: wind.direction,
+        outside:
+        boundary.outside,
+
+        boundaryCount:
+        boundary.count,
+
+        windSpeed:
+        wind.speed,
+
+        windDirection:
+        wind.direction,
       },
     )
 
-    telemetry.score = FEATURES.score
-      ? scoreSystem.update(
-        delta,
-        telemetry.distance,
-        telemetry.outside,
-      )
-      : 0
+    telemetry.score =
+      FEATURES.score
+        ? scoreSystem.update(
+          delta,
+          telemetry.distance,
+          telemetry.outside,
+        )
+        : 0
 
     cameraController.update(
       delta,
@@ -509,40 +1078,108 @@ function animate(timestamp) {
     )
   }
 
-  // 即使暫停，也讓 Ring 維持正確位置
   updatePositionRing()
+
+  updateStabilityZone()
+
   updateChallengeTarget()
 
   renderer.render(
     scene,
     camera,
   )
+}
 
+function formatStabilityTime(
+  seconds,
+) {
+  const totalSeconds =
+    Math.ceil(
+      Math.max(
+        0,
+        seconds,
+      ),
+    )
+
+  const minutes =
+    Math.floor(
+      totalSeconds / 60,
+    )
+
+  const secs =
+    totalSeconds % 60
+
+  return (
+    `${String(minutes).padStart(2, '0')}:`
+    + `${String(secs).padStart(2, '0')}`
+  )
+}
+
+function formatStabilityResultTime(
+  seconds,
+) {
+  const safeSeconds =
+    Math.max(
+      0,
+      seconds,
+    )
+
+  const minutes =
+    Math.floor(
+      safeSeconds / 60,
+    )
+
+  const secs =
+    safeSeconds % 60
+
+  return (
+    `${String(minutes).padStart(2, '0')}:`
+    + secs
+      .toFixed(1)
+      .padStart(4, '0')
+  )
 }
 
 function dispose() {
-  cancelAnimationFrame(animationFrame)
+  cancelAnimationFrame(
+    animationFrame,
+  )
 
-  resizeObserver?.disconnect()
+  resizeObserver
+    ?.disconnect()
 
-  scene?.traverse((object) => {
-    object.geometry?.dispose()
+  scene?.traverse(
+    (object) => {
+      object.geometry
+        ?.dispose()
 
-    const materials = object.material
-      ? (
-        Array.isArray(object.material)
-          ? object.material
-          : [object.material]
+      const materials =
+        object.material
+          ? (
+            Array.isArray(
+              object.material,
+            )
+              ? object.material
+              : [
+                object.material,
+              ]
+          )
+          : []
+
+      materials.forEach(
+        (material) => {
+          material.dispose()
+        },
       )
-      : []
+    },
+  )
 
-    materials.forEach((material) => {
-      material.dispose()
-    })
-  })
+  renderer
+    ?.dispose()
 
-  renderer?.dispose()
-  renderer?.domElement?.remove()
+  renderer
+    ?.domElement
+    ?.remove()
 }
 
 watch(
@@ -550,24 +1187,39 @@ watch(
     props.settings.cameraHeight,
     props.settings.cameraBearing,
   ],
-  () => applyCamera(false),
+
+  () =>
+    applyCamera(false),
 )
 
 watch(
-  () => props.settings.windMode,
+  () =>
+    props.settings.windMode,
+
   resetSimulation,
 )
 
 watch(
-  () => props.settings.trainingMode,
+  () =>
+    props.settings.trainingMode,
+
   resetSimulation,
 )
 
 watch(
-  () => props.settings.showHeadingArrow,
+  () =>
+    props.settings.showHeadingArrow,
+
   (visible) => {
-    if (drone?.userData.headingArrow) {
-      drone.userData.headingArrow.visible =
+    if (
+      drone
+        ?.userData
+        .headingArrow
+    ) {
+      drone
+        .userData
+        .headingArrow
+        .visible =
         visible
     }
   },
@@ -575,55 +1227,71 @@ watch(
 
 watch(
   controlSource,
+
   (source) => {
     emit(
       'control-source-ready',
       source,
     )
   },
+
   {
     immediate: true,
   },
 )
 
 watch(
-  () => props.settings.trainingMode,
+  () =>
+    props.settings.trainingMode,
+
   () => {
-    if (isStickTraining.value) {
+    if (
+      isStickTraining.value
+    ) {
       startStickTraining()
+
       return
     }
 
     stopStickTraining()
   },
+
   {
     immediate: true,
   },
 )
 
-onMounted(async () => {
-  await nextTick()
+onMounted(
+  async () => {
+    await nextTick()
 
-  initScene()
+    initScene()
 
-  emit(
-    'input-ready',
-    visualInput,
-  )
+    emit(
+      'input-ready',
+      visualInput,
+    )
 
-  emit(
-    'register-actions',
-    {
-      reset: resetSimulation,
-      togglePause,
-    },
-  )
+    emit(
+      'register-actions',
+      {
+        reset:
+        resetSimulation,
 
-  animationFrame =
-    requestAnimationFrame(animate)
-})
+        togglePause,
+      },
+    )
 
-onBeforeUnmount(dispose)
+    animationFrame =
+      requestAnimationFrame(
+        animate,
+      )
+  },
+)
+
+onBeforeUnmount(
+  dispose,
+)
 </script>
 
 <template>
@@ -638,19 +1306,27 @@ onBeforeUnmount(dispose)
 
     <!-- 飛行資訊 -->
     <FlightHUD
-      v-if="!isStickTraining"
+      v-if="
+        !isStickTraining
+        && !isStabilityTraining
+      "
       :telemetry="game.telemetry"
       :status-text="game.statusText.value"
       :wind-mode="settings.windMode"
-      :camera-bearing="selected(
-        cameraBearingOptions,
-        settings.cameraBearing,
-      ).degrees"
+      :camera-bearing="
+        selected(
+          cameraBearingOptions,
+          settings.cameraBearing,
+        ).degrees
+      "
     />
 
     <!-- 挑戰資訊 -->
     <ChallengeHUD
-      v-if="FEATURES.challenge && isChallengeMode"
+      v-if="
+        FEATURES.challenge
+        && isChallengeMode
+      "
       :challenge="activeChallenge"
     />
 
@@ -658,7 +1334,9 @@ onBeforeUnmount(dispose)
     <StickTrainingHUD
       v-if="isStickTraining"
       :exercise="currentExercise"
-      :completed="stickTrainingCompleted"
+      :completed="
+        stickTrainingCompleted
+      "
       :waiting-for-start-center="
         stickTrainingWaitingForStartCenter
       "
@@ -668,34 +1346,71 @@ onBeforeUnmount(dispose)
       :waiting-for-next-round="
         stickTrainingWaitingForNextRound
       "
-      :round="stickTrainingRound"
-      :error-type="stickTrainingErrorType"
-      :error-message="stickTrainingErrorMessage"
-      :success-min="stickTrainingSuccessMin"
-      :success-max="stickTrainingSuccessMax"
+      :round="
+        stickTrainingRound
+      "
+      :error-type="
+        stickTrainingErrorType
+      "
+      :error-message="
+        stickTrainingErrorMessage
+      "
+      :success-min="
+        stickTrainingSuccessMin
+      "
+      :success-max="
+        stickTrainingSuccessMax
+      "
       :success-hold-progress="
         stickTrainingSuccessHoldProgress
       "
     />
 
-    <!--
-      右上角 HUD 區域
+    <!-- 穩定控制訓練 -->
+    <StabilityTrainingHUD
+      v-if="isStabilityTraining"
+      :time-label="
+        stabilityTimeLabel
+      "
+      :phase="
+        stabilityPhase
+      "
+      :heading-label="
+        stabilityHeadingLabel
+      "
+      :total-label="
+        stabilityTotalLabel
+      "
+      :inside-label="
+        stabilityInsideLabel
+      "
+      :outside-label="
+        stabilityOutsideLabel
+      "
+      :stability-label="
+        stabilityPercentLabel
+      "
+      @retry="resetSimulation"
+    />
 
-      方位針永遠排第一順位。
-      風向資訊若啟用，應排列在方位針下方。
-    -->
+    <!-- 右上角 HUD -->
     <div
       v-if="!isStickTraining"
       class="pointer-events-none absolute right-4 top-4 z-30 flex flex-col items-end gap-3"
     >
       <CompassHUD
-        :heading="compassHeading"
+        :heading="
+          compassHeading
+        "
       />
     </div>
 
     <!-- 鏡頭說明 -->
     <div
-      v-if="!isStickTraining"
+      v-if="
+        !isStickTraining
+        && !isStabilityTraining
+      "
       class="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/50 px-4 py-2 text-xs text-white/60 backdrop-blur"
     >
       鏡頭只跟位置，不跟機頭旋轉
