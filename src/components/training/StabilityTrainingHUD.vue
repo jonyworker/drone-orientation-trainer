@@ -115,7 +115,7 @@ const emit = defineEmits([
 
       <!-- Heading -->
       <div
-        class="mb-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+        class="mb-5 rounded-2xl border border-white/10 bg-white/4 p-4"
       >
         <p
           class="text-[11px] uppercase tracking-[0.18em] text-white/40"
@@ -133,7 +133,7 @@ const emit = defineEmits([
       <!-- Result -->
       <div class="grid grid-cols-2 gap-3">
         <div
-          class="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+          class="rounded-2xl border border-white/10 bg-white/4 p-4"
         >
           <p
             class="text-[11px] uppercase tracking-[0.16em] text-white/40"
@@ -149,7 +149,7 @@ const emit = defineEmits([
         </div>
 
         <div
-          class="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+          class="rounded-2xl border border-white/10 bg-white/4 p-4"
         >
           <p
             class="text-[11px] uppercase tracking-[0.16em] text-white/40"
@@ -165,7 +165,7 @@ const emit = defineEmits([
         </div>
 
         <div
-          class="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+          class="rounded-2xl border border-white/10 bg-white/4 p-4"
         >
           <p
             class="text-[11px] uppercase tracking-[0.16em] text-white/40"
@@ -181,7 +181,7 @@ const emit = defineEmits([
         </div>
 
         <div
-          class="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+          class="rounded-2xl border border-white/10 bg-white/4 p-4"
         >
           <p
             class="text-[11px] uppercase tracking-[0.16em] text-white/40"
