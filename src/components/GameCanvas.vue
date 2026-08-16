@@ -72,17 +72,28 @@ const activeChallenge = ref(null)
 const compassHeading = ref(0)
 
 const stabilityHeading = ref(null)
-
 const stabilityOutside = ref(false)
 const stabilityDistance = ref(0)
 
 const stabilityInsideTime = ref(0)
 const stabilityOutsideTime = ref(0)
 
-const STABILITY_DURATION = 120
+const STABILITY_DURATION = 10
+const STABILITY_READY_DURATION = 3
 
-const stabilityPhase = ref('running')
+const stabilityPhase = ref('ready')
 const stabilityElapsedTime = ref(0)
+const stabilityReadyElapsed = ref(0)
+
+const stabilityReadyCount = computed(() =>
+  Math.max(
+    1,
+    Math.ceil(
+      STABILITY_READY_DURATION
+      - stabilityReadyElapsed.value,
+    ),
+  ),
+)
 
 const stabilityRemainingTime = computed(() =>
   Math.max(
@@ -522,9 +533,30 @@ function updateStabilityBoundary() {
     > stabilityZoneRadius
 }
 
-function updateStabilityScore(
-  delta,
-) {
+function updateStabilityReady(delta) {
+  if (
+    !isStabilityTraining.value
+    || stabilityPhase.value !== 'ready'
+  ) {
+    return
+  }
+
+  stabilityReadyElapsed.value +=
+    delta
+
+  if (
+    stabilityReadyElapsed.value
+    >= STABILITY_READY_DURATION
+  ) {
+    stabilityReadyElapsed.value =
+      STABILITY_READY_DURATION
+
+    stabilityPhase.value =
+      'running'
+  }
+}
+
+function updateStabilityScore(delta) {
   if (
     !isStabilityTraining.value
     || stabilityPhase.value
@@ -594,6 +626,8 @@ function updateStabilityScore(
 
     stabilityPhase.value =
       'finished'
+
+    physics?.stopMotion()
   }
 }
 
@@ -719,8 +753,13 @@ function resetSimulation() {
       + 360
     ) % 360
 
+  const windMode =
+    isStabilityTraining.value
+      ? 'stability'
+      : props.settings.windMode
+
   windSystem.reset(
-    props.settings.windMode,
+    windMode,
   )
 
   boundarySystem.reset()
@@ -758,9 +797,7 @@ function resetSimulation() {
   )
 
   updatePositionRing()
-
   updateStabilityZone()
-
   applyCamera(true)
 }
 
@@ -850,22 +887,18 @@ function advanceChallengeRound() {
     ) % 360
 
   updateChallengeTarget()
-
   updatePositionRing()
 }
 
 function resetStabilityScore() {
-  stabilityInsideTime.value =
-    0
+  stabilityInsideTime.value = 0
+  stabilityOutsideTime.value = 0
+  stabilityElapsedTime.value = 0
 
-  stabilityOutsideTime.value =
-    0
-
-  stabilityElapsedTime.value =
-    0
+  stabilityReadyElapsed.value = 0
 
   stabilityPhase.value =
-    'running'
+    'ready'
 }
 
 function animate(timestamp) {
@@ -898,11 +931,46 @@ function animate(timestamp) {
     telemetry.time +=
       delta
 
+    /*
+     * Stability 的風只允許在 RUNNING 階段作用。
+     *
+     * READY：
+     *   3、2、1 時無風。
+     *
+     * RUNNING：
+     *   啟動 stability 專用風場。
+     *
+     * FINISHED：
+     *   風停止。
+     */
+    const stabilityWindDisabled =
+      isStabilityTraining.value
+      && stabilityPhase.value
+      !== 'running'
+
+    /*
+     * Stability 使用自己的遊戲時間，
+     * 不把 READY 的 3 秒算進風場。
+     */
+    const windElapsedTime =
+      isStabilityTraining.value
+        ? stabilityElapsedTime.value
+        : telemetry.time
+
     const wind =
-      windSystem.update(
-        delta,
-        telemetry.time,
-      )
+      stabilityWindDisabled
+        ? {
+          acceleration:
+            new THREE.Vector3(),
+
+          speed: 0,
+
+          direction: 0,
+        }
+        : windSystem.update(
+          delta,
+          windElapsedTime,
+        )
 
     const activeInput =
       getActiveInput()
@@ -942,8 +1010,10 @@ function animate(timestamp) {
         flightInput = {
           throttle: 0.5,
           yaw: 0,
+
           pitch:
           activeInput.pitch,
+
           roll:
           activeInput.roll,
         }
@@ -1004,6 +1074,10 @@ function animate(timestamp) {
       )
 
     updateStabilityBoundary()
+
+    updateStabilityReady(
+      delta,
+    )
 
     updateStabilityScore(
       delta,
@@ -1079,9 +1153,7 @@ function animate(timestamp) {
   }
 
   updatePositionRing()
-
   updateStabilityZone()
-
   updateChallengeTarget()
 
   renderer.render(
@@ -1369,27 +1441,14 @@ onBeforeUnmount(
     <!-- 穩定控制訓練 -->
     <StabilityTrainingHUD
       v-if="isStabilityTraining"
-      :time-label="
-        stabilityTimeLabel
-      "
-      :phase="
-        stabilityPhase
-      "
-      :heading-label="
-        stabilityHeadingLabel
-      "
-      :total-label="
-        stabilityTotalLabel
-      "
-      :inside-label="
-        stabilityInsideLabel
-      "
-      :outside-label="
-        stabilityOutsideLabel
-      "
-      :stability-label="
-        stabilityPercentLabel
-      "
+      :time-label="stabilityTimeLabel"
+      :phase="stabilityPhase"
+      :ready-count="stabilityReadyCount"
+      :heading-label="stabilityHeadingLabel"
+      :total-label="stabilityTotalLabel"
+      :inside-label="stabilityInsideLabel"
+      :outside-label="stabilityOutsideLabel"
+      :stability-label="stabilityPercentLabel"
       @retry="resetSimulation"
     />
 

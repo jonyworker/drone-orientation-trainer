@@ -53,6 +53,23 @@ export class DronePhysics {
     )
   }
 
+  stopMotion() {
+    this.velocity.set(0, 0, 0)
+
+    this.localAcceleration.set(0, 0, 0)
+    this.worldAcceleration.set(0, 0, 0)
+    this.currentWindAcceleration.set(0, 0, 0)
+
+    this.state.pitchVisual = 0
+    this.state.rollVisual = 0
+
+    this.drone.rotation.set(
+      0,
+      -this.state.yaw,
+      0,
+    )
+  }
+
   update(
     delta,
     input,

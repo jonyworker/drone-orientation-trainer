@@ -34,6 +34,10 @@ defineProps({
     type: String,
     default: '0.0%',
   },
+  readyCount: {
+    type: Number,
+    default: 3,
+  },
 })
 
 const emit = defineEmits([
@@ -42,9 +46,42 @@ const emit = defineEmits([
 </script>
 
 <template>
+  <!-- 開始前倒數 -->
+  <div
+    v-if="phase === 'ready'"
+    class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
+  >
+    <div
+      class="flex flex-col items-center rounded-3xl border border-white/10 bg-black/55 px-10 py-8 text-center backdrop-blur"
+    >
+      <p
+        class="text-xs font-semibold uppercase tracking-[0.22em] text-lime-300"
+      >
+        Stability Training
+      </p>
+
+      <p
+        class="mt-3 text-sm uppercase tracking-[0.16em] text-white/50"
+      >
+        Heading
+      </p>
+
+      <p
+        class="mt-1 text-xl font-semibold text-white"
+      >
+        {{ headingLabel }}
+      </p>
+
+      <p
+        class="mt-6 font-mono text-6xl font-semibold text-white"
+      >
+        {{ readyCount }}
+      </p>
+    </div>
+  </div>
   <!-- 遊戲進行中 -->
   <div
-    v-if="phase === 'running'"
+    v-else-if="phase === 'running'"
     class="pointer-events-none absolute left-1/2 top-5 z-30 -translate-x-1/2"
   >
     <div
