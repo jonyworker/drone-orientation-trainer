@@ -32,6 +32,11 @@ import { CameraController } from '@/core/CameraController.js'
 import { DronePhysics } from '@/core/DronePhysics.js'
 
 import {
+  stabilityWindOptions,
+  stabilityZoneOptions,
+} from '@/stores/settingsStore.js'
+
+import {
   cameraBearingOptions,
   cameraHeightOptions,
 } from '@/stores/settingsStore.js'
@@ -84,6 +89,9 @@ const STABILITY_READY_DURATION = 3
 const stabilityPhase = ref('ready')
 const stabilityElapsedTime = ref(0)
 const stabilityReadyElapsed = ref(0)
+
+const stabilityRoundWindLevel = ref('normal')
+const stabilityRoundZoneSize = ref('normal')
 
 const stabilityReadyCount = computed(() =>
   Math.max(
@@ -144,19 +152,14 @@ let animationFrame
 let lastTimestamp = 0
 
 const zoneSize = 12
-const stabilityZoneRadius = 2.5
 
-const windSystem =
-  new WindSystem()
+const windSystem = new WindSystem()
 
-const boundarySystem =
-  new BoundarySystem(zoneSize)
+const boundarySystem = new BoundarySystem(zoneSize)
 
-const scoreSystem =
-  new ScoreSystem(zoneSize / 2)
+const scoreSystem = new ScoreSystem(zoneSize / 2)
 
-const challengeSystem =
-  new ChallengeSystem()
+const challengeSystem = new ChallengeSystem()
 
 const {
   input: keyboardInput,
@@ -221,6 +224,90 @@ const stabilityResult = computed(() => {
 
     stability,
   }
+})
+
+const stabilityZoneRadius = computed(() => {
+  if (
+    props.settings.trainingMode
+    !== 'stabilityTraining2'
+  ) {
+    return 2.5
+  }
+
+  const zoneSize =
+    stabilityPhase.value === 'setup'
+      ? props.settings.stabilityZoneSize
+      : stabilityRoundZoneSize.value
+
+  return (
+    stabilityZoneOptions.find(
+      option =>
+        option.value === zoneSize,
+    )?.radius
+    ?? 2.5
+  )
+})
+
+const stabilityWindMultiplier = computed(() => {
+  if (
+    props.settings.trainingMode
+    !== 'stabilityTraining2'
+  ) {
+    return 1
+  }
+
+  const windLevel =
+    stabilityPhase.value === 'setup'
+      ? props.settings.stabilityWindLevel
+      : stabilityRoundWindLevel.value
+
+  return (
+    stabilityWindOptions.find(
+      option =>
+        option.value === windLevel,
+    )?.multiplier
+    ?? 1
+  )
+})
+
+const stabilityWindLabel = computed(() => {
+  if (
+    props.settings.trainingMode
+    !== 'stabilityTraining2'
+  ) {
+    return ''
+  }
+
+  return (
+    stabilityWindOptions.find(
+      option =>
+        option.value
+        === stabilityRoundWindLevel.value,
+    )?.label
+    ?? '-'
+  )
+})
+
+const stabilityZoneLabel = computed(() => {
+  if (
+    props.settings.trainingMode
+    !== 'stabilityTraining2'
+  ) {
+    return ''
+  }
+
+  const option =
+    stabilityZoneOptions.find(
+      item =>
+        item.value
+        === stabilityRoundZoneSize.value,
+    )
+
+  if (!option) {
+    return '-'
+  }
+
+  return `${option.label} · R ${option.radius.toFixed(1)} m`
 })
 
 const stabilityTotalLabel =
@@ -459,7 +546,7 @@ function initScene() {
 
   stabilityZone =
     createStabilityZone(
-      stabilityZoneRadius,
+      stabilityZoneRadius.value,
     )
 
   stabilityZone.position.set(
@@ -530,7 +617,7 @@ function updateStabilityBoundary() {
 
   stabilityOutside.value =
     distance
-    > stabilityZoneRadius
+    > stabilityZoneRadius.value
 }
 
 function updateStabilityReady(delta) {
@@ -815,6 +902,16 @@ function updateStabilityZone() {
 
   stabilityZone.visible =
     isStabilityTraining.value
+
+  const scale =
+    stabilityZoneRadius.value
+    / 2.5
+
+  stabilityZone.scale.set(
+    scale,
+    scale,
+    scale,
+  )
 }
 
 function updatePositionRing() {
@@ -898,7 +995,181 @@ function resetStabilityScore() {
   stabilityReadyElapsed.value = 0
 
   stabilityPhase.value =
+    props.settings.trainingMode
+    === 'stabilityTraining2'
+      ? 'setup'
+      : 'ready'
+}
+
+function startStabilityTraining() {
+  if (
+    props.settings.trainingMode
+    !== 'stabilityTraining2'
+    || stabilityPhase.value
+    !== 'setup'
+  ) {
+    return
+  }
+
+  stabilityRoundWindLevel.value =
+    props.settings.stabilityWindLevel
+
+  stabilityRoundZoneSize.value =
+    props.settings.stabilityZoneSize
+
+  stabilityInsideTime.value = 0
+  stabilityOutsideTime.value = 0
+  stabilityElapsedTime.value = 0
+  stabilityReadyElapsed.value = 0
+
+  stabilityPhase.value =
     'ready'
+
+  /*
+   * 按下 START 的瞬間重新初始化，
+   * 確保本回合從中心、靜止狀態開始。
+   */
+  physics?.stopMotion()
+
+  if (physics) {
+    const yaw =
+      stabilityHeading.value
+        ?.radians
+      ?? 0
+
+    physics.reset(
+      yaw,
+    )
+  }
+
+  /*
+   * 本回合風場也重新從頭開始。
+   * READY 期間仍然不會產生風。
+   */
+  windSystem.reset(
+    'stability',
+  )
+
+  updatePositionRing()
+  updateStabilityBoundary()
+}
+
+function retryStabilityTraining() {
+  if (
+    props.settings.trainingMode
+    !== 'stabilityTraining2'
+  ) {
+    resetSimulation()
+    return
+  }
+
+  if (
+    stabilityPhase.value
+    !== 'finished'
+  ) {
+    return
+  }
+
+  clearKeyboardInput()
+
+  props.game.paused.value =
+    false
+
+  stabilityHeading.value =
+    randomCardinalHeading()
+
+  const yaw =
+    stabilityHeading.value
+      .radians
+
+  stabilityInsideTime.value = 0
+  stabilityOutsideTime.value = 0
+  stabilityElapsedTime.value = 0
+  stabilityReadyElapsed.value = 0
+
+  stabilityPhase.value =
+    'ready'
+
+  physics?.reset(
+    yaw,
+  )
+
+  compassHeading.value =
+    (
+      THREE.MathUtils.radToDeg(
+        yaw,
+      )
+      + 360
+    ) % 360
+
+  windSystem.reset(
+    'stability',
+  )
+
+  boundarySystem.reset()
+
+  Object.assign(
+    props.game.telemetry,
+    {
+      altitude: 1.5,
+      speed: 0,
+      yaw: 0,
+      distance: 0,
+      score: 0,
+      time: 0,
+      boundaryCount: 0,
+      outside: false,
+      windSpeed: 0,
+      windDirection: 0,
+    },
+  )
+
+  updatePositionRing()
+  updateStabilityZone()
+  updateStabilityBoundary()
+  applyCamera(true)
+}
+
+function changeStabilitySettings() {
+  if (
+    props.settings.trainingMode
+    !== 'stabilityTraining2'
+  ) {
+    return
+  }
+
+  resetSimulation()
+}
+
+function updateStabilityWindLevel(value) {
+  if (
+    props.settings.trainingMode
+    !== 'stabilityTraining2'
+    || stabilityPhase.value
+    !== 'setup'
+  ) {
+    return
+  }
+
+  props.settings.stabilityWindLevel =
+    value
+}
+
+function updateStabilityZoneSize(value) {
+  if (
+    props.settings.trainingMode
+    !== 'stabilityTraining2'
+    || stabilityPhase.value
+    !== 'setup'
+  ) {
+    return
+  }
+
+  props.settings.stabilityZoneSize =
+    value
+
+  updateStabilityZone()
+  updateStabilityBoundary()
 }
 
 function animate(timestamp) {
@@ -957,7 +1228,7 @@ function animate(timestamp) {
         ? stabilityElapsedTime.value
         : telemetry.time
 
-    const wind =
+    const rawWind =
       stabilityWindDisabled
         ? {
           acceleration:
@@ -971,6 +1242,40 @@ function animate(timestamp) {
           delta,
           windElapsedTime,
         )
+
+    /*
+     * Stability Lv.2 可調整風力強度。
+     *
+     * Lv.1：
+     *   固定使用 1.0 倍風力。
+     *
+     * Lv.2：
+     *   light / normal / strong
+     *   由 stabilityWindMultiplier 決定。
+     *
+     * 不直接修改 WindSystem 回傳的 acceleration，
+     * 避免影響 WindSystem 內部可能重複使用的向量。
+     */
+    const windMultiplier =
+      isStabilityTraining.value
+        ? stabilityWindMultiplier.value
+        : 1
+
+    const wind = {
+      acceleration:
+        rawWind.acceleration
+          .clone()
+          .multiplyScalar(
+            windMultiplier,
+          ),
+
+      speed:
+        rawWind.speed
+        * windMultiplier,
+
+      direction:
+      rawWind.direction,
+    }
 
     const activeInput =
       getActiveInput()
@@ -1333,6 +1638,23 @@ watch(
   },
 )
 
+watch(
+  () =>
+    props.settings.stabilityZoneSize,
+
+  () => {
+    if (
+      props.settings.trainingMode
+      !== 'stabilityTraining2'
+    ) {
+      return
+    }
+
+    updateStabilityZone()
+    updateStabilityBoundary()
+  },
+)
+
 onMounted(
   async () => {
     await nextTick()
@@ -1449,7 +1771,18 @@ onBeforeUnmount(
       :inside-label="stabilityInsideLabel"
       :outside-label="stabilityOutsideLabel"
       :stability-label="stabilityPercentLabel"
-      @retry="resetSimulation"
+      :show-difficulty="
+        settings.trainingMode
+        === 'stabilityTraining2'
+      "
+      :settings="settings"
+      :wind-label="stabilityWindLabel"
+      :zone-label="stabilityZoneLabel"
+      @update-wind-level="updateStabilityWindLevel"
+      @update-zone-size="updateStabilityZoneSize"
+      @start="startStabilityTraining"
+      @retry="retryStabilityTraining"
+      @change-settings="changeStabilitySettings"
     />
 
     <!-- 右上角 HUD -->

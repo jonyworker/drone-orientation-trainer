@@ -1,4 +1,5 @@
 <script setup>
+import StabilityTrainingSettings from '@/components/training/StabilityTrainingSettings.vue'
 defineProps({
   timeLabel: {
     type: String,
@@ -34,21 +35,96 @@ defineProps({
     type: String,
     default: '0.0%',
   },
+
   readyCount: {
     type: Number,
     default: 3,
   },
+
+  settings: {
+    type: Object,
+    default: null,
+  },
+
+  showDifficulty: {
+    type: Boolean,
+    default: false,
+  },
+
+  windLabel: {
+    type: String,
+    default: '',
+  },
+
+  zoneLabel: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits([
+  'start',
   'retry',
+  'change-settings',
+  'update-wind-level',
+  'update-zone-size',
 ])
 </script>
 
 <template>
+  <!-- Lv.2 飛行前設定 -->
+  <div
+    v-if="phase === 'setup'"
+    class="absolute inset-0 z-40 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
+  >
+    <section
+      class="pointer-events-auto w-[min(560px,calc(100%-16px))] rounded-3xl border border-white/10 bg-black/80 p-6 shadow-2xl backdrop-blur"
+    >
+      <header class="mb-5">
+        <p
+          class="text-xs font-semibold uppercase tracking-[0.22em] text-lime-300"
+        >
+          Stability Training Lv.2
+        </p>
+
+        <h2
+          class="mt-2 text-2xl font-semibold text-white"
+        >
+          準備好了嗎？
+        </h2>
+
+        <p
+          class="mt-2 text-sm leading-6 text-white/50"
+        >
+          設定本回合的風力與穩定範圍，確認後開始訓練。
+        </p>
+      </header>
+
+      <StabilityTrainingSettings
+        v-if="settings"
+        :settings="settings"
+        :embedded="true"
+        @update-wind-level="
+          emit('update-wind-level', $event)
+        "
+        @update-zone-size="
+          emit('update-zone-size', $event)
+        "
+      />
+
+      <button
+        type="button"
+        class="mt-5 w-full rounded-2xl bg-lime-300 px-5 py-3 text-sm font-semibold tracking-[0.12em] text-black transition hover:bg-lime-200 active:scale-[0.99]"
+        @click="emit('start')"
+      >
+        START
+      </button>
+    </section>
+  </div>
+
   <!-- 開始前倒數 -->
   <div
-    v-if="phase === 'ready'"
+    v-else-if="phase === 'ready'"
     class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
   >
     <div
@@ -59,6 +135,23 @@ const emit = defineEmits([
       >
         Stability Training
       </p>
+
+      <div
+        v-if="showDifficulty"
+        class="mt-4 flex flex-wrap justify-center gap-2"
+      >
+        <span
+          class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60"
+        >
+          WIND · {{ windLabel }}
+        </span>
+
+        <span
+          class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60"
+        >
+          TARGET · {{ zoneLabel }}
+        </span>
+      </div>
 
       <p
         class="mt-3 text-sm uppercase tracking-[0.16em] text-white/50"
@@ -79,15 +172,36 @@ const emit = defineEmits([
       </p>
     </div>
   </div>
+
   <!-- 遊戲進行中 -->
   <div
     v-else-if="phase === 'running'"
     class="pointer-events-none absolute left-1/2 top-5 z-30 -translate-x-1/2"
   >
     <div
-      class="rounded-full border border-white/10 bg-black/55 px-5 py-2 font-mono text-lg font-semibold tracking-[0.18em] text-white backdrop-blur"
+      class="flex items-center gap-3 rounded-full border border-white/10 bg-black/55 px-5 py-2 backdrop-blur"
     >
-      {{ timeLabel }}
+      <span
+        class="font-mono text-lg font-semibold tracking-[0.18em] text-white"
+      >
+        {{ timeLabel }}
+      </span>
+
+      <template v-if="showDifficulty">
+        <span class="h-4 w-px bg-white/10" />
+
+        <span class="text-xs text-white/50">
+          {{ windLabel }}
+        </span>
+
+        <span class="text-xs text-white/30">
+          ·
+        </span>
+
+        <span class="text-xs text-white/50">
+          {{ zoneLabel }}
+        </span>
+      </template>
     </div>
   </div>
 
@@ -97,7 +211,7 @@ const emit = defineEmits([
     class="absolute inset-0 z-40 flex items-center justify-center bg-black/55 backdrop-blur-sm"
   >
     <section
-      class="w-[min(420px,calc(100%-32px))] rounded-3xl border border-white/10 bg-black/80 p-6 shadow-2xl"
+      class="pointer-events-auto w-[min(420px,calc(100%-32px))] rounded-3xl border border-white/10 bg-black/80 p-6 shadow-2xl"
     >
       <header class="mb-6">
         <p
@@ -112,6 +226,43 @@ const emit = defineEmits([
           穩定控制完成
         </h2>
       </header>
+
+      <div
+        v-if="showDifficulty"
+        class="mb-5 grid grid-cols-2 gap-3"
+      >
+        <div
+          class="rounded-2xl border border-white/10 bg-white/4 p-4"
+        >
+          <p
+            class="text-[11px] uppercase tracking-[0.18em] text-white/40"
+          >
+            Wind
+          </p>
+
+          <p
+            class="mt-1 text-base font-semibold text-white"
+          >
+            {{ windLabel }}
+          </p>
+        </div>
+
+        <div
+          class="rounded-2xl border border-white/10 bg-white/4 p-4"
+        >
+          <p
+            class="text-[11px] uppercase tracking-[0.18em] text-white/40"
+          >
+            Target
+          </p>
+
+          <p
+            class="mt-1 text-base font-semibold text-white"
+          >
+            {{ zoneLabel }}
+          </p>
+        </div>
+      </div>
 
       <!-- Heading -->
       <div
@@ -197,13 +348,21 @@ const emit = defineEmits([
         </div>
       </div>
 
-      <!-- Retry -->
       <button
         type="button"
         class="mt-5 w-full rounded-2xl bg-lime-300 px-5 py-3 text-sm font-semibold text-black transition hover:bg-lime-200 active:scale-[0.99]"
         @click="emit('retry')"
       >
         再次挑戰
+      </button>
+
+      <button
+        v-if="showDifficulty"
+        type="button"
+        class="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white active:scale-[0.99]"
+        @click="emit('change-settings')"
+      >
+        變更設定
       </button>
     </section>
   </div>

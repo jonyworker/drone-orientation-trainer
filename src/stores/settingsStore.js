@@ -21,6 +21,48 @@ export const windOptions = [
   { value: 'gusty', label: '變向陣風' },
 ]
 
+export const stabilityWindOptions = [
+  {
+    value: 'light',
+    label: '微風',
+    multiplier: 0.6,
+    description: '較容易預判與修正',
+  },
+  {
+    value: 'normal',
+    label: '標準',
+    multiplier: 1,
+    description: '標準穩定控制訓練',
+  },
+  {
+    value: 'strong',
+    label: '強風',
+    multiplier: 1.6,
+    description: '需要更快、更精細地修正',
+  },
+]
+
+export const stabilityZoneOptions = [
+  {
+    value: 'large',
+    label: '大',
+    radius: 4,
+    description: '容錯空間較大',
+  },
+  {
+    value: 'normal',
+    label: '標準',
+    radius: 2.5,
+    description: '標準穩定範圍',
+  },
+  {
+    value: 'small',
+    label: '小',
+    radius: 1.5,
+    description: '要求精細位置控制',
+  },
+]
+
 export const trainingOptions = [
   {
     value: 'free',
@@ -42,6 +84,10 @@ export const trainingOptions = [
     value: 'stabilityTraining1',
     label: '穩定控制 Lv.1',
   },
+  {
+    value: 'stabilityTraining2',
+    label: '穩定控制 Lv.2',
+  },
 ]
 
 const state = reactive({
@@ -49,6 +95,10 @@ const state = reactive({
   cameraBearing: 'front',
   windMode: 'none',
   trainingMode: 'free',
+
+  stabilityWindLevel: 'normal',
+  stabilityZoneSize: 'normal',
+
   showHeadingArrow: true,
   showHelp: true,
 })
