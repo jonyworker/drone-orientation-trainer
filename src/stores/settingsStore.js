@@ -1,24 +1,77 @@
 import { reactive } from 'vue'
 
 export const cameraHeightOptions = [
-  { value: 'angled', label: '斜俯視', distance: 15, height: 7.5, lookHeight: 1.4 },
-  { value: 'eye', label: '平視', distance: 18, height: 1.8, lookHeight: 1.45 },
-  { value: 'low', label: '低角度', distance: 17, height: 0.75, lookHeight: 1.65 },
-  { value: 'high', label: '高角度俯視', distance: 14, height: 12.5, lookHeight: 1.1 },
+  {
+    value: 'angled',
+    label: '斜俯視',
+    distance: 15,
+    height: 7.5,
+    lookHeight: 1.4,
+  },
+  {
+    value: 'eye',
+    label: '平視',
+    distance: 18,
+    height: 1.8,
+    lookHeight: 1.45,
+  },
+  {
+    value: 'low',
+    label: '低角度',
+    distance: 17,
+    height: 0.75,
+    lookHeight: 1.65,
+  },
+  {
+    value: 'high',
+    label: '高角度俯視',
+    distance: 14,
+    height: 12.5,
+    lookHeight: 1.1,
+  },
 ]
 
 export const cameraBearingOptions = [
-  { value: 'front', label: '正面 0°', degrees: 0 },
-  { value: 'diagonal', label: '斜角 45°', degrees: 45 },
-  { value: 'right', label: '右側 90°', degrees: 90 },
-  { value: 'back', label: '背面 180°', degrees: 180 },
-  { value: 'left', label: '左側 −90°', degrees: -90 },
+  {
+    value: 'front',
+    label: '正面 0°',
+    degrees: 0,
+  },
+  {
+    value: 'diagonal',
+    label: '斜角 45°',
+    degrees: 45,
+  },
+  {
+    value: 'right',
+    label: '右側 90°',
+    degrees: 90,
+  },
+  {
+    value: 'back',
+    label: '背面 180°',
+    degrees: 180,
+  },
+  {
+    value: 'left',
+    label: '左側 −90°',
+    degrees: -90,
+  },
 ]
 
 export const windOptions = [
-  { value: 'none', label: '無風' },
-  { value: 'breeze', label: '穩定微風' },
-  { value: 'gusty', label: '變向陣風' },
+  {
+    value: 'none',
+    label: '無風',
+  },
+  {
+    value: 'breeze',
+    label: '穩定微風',
+  },
+  {
+    value: 'gusty',
+    label: '變向陣風',
+  },
 ]
 
 export const stabilityWindOptions = [
@@ -63,6 +116,24 @@ export const stabilityZoneOptions = [
   },
 ]
 
+export const stabilityDurationOptions = [
+  {
+    value: 30,
+    label: '30 秒',
+    description: '快速',
+  },
+  {
+    value: 60,
+    label: '60 秒',
+    description: '標準',
+  },
+  {
+    value: 120,
+    label: '120 秒',
+    description: '持續',
+  },
+]
+
 export const trainingOptions = [
   {
     value: 'free',
@@ -98,6 +169,7 @@ const state = reactive({
 
   stabilityWindLevel: 'normal',
   stabilityZoneSize: 'normal',
+  stabilityDuration: 60,
 
   showHeadingArrow: true,
   showHelp: true,

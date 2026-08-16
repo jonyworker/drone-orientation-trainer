@@ -41,6 +41,11 @@ defineProps({
     default: 3,
   },
 
+  level: {
+    type: Number,
+    default: 1,
+  },
+
   settings: {
     type: Object,
     default: null,
@@ -60,6 +65,11 @@ defineProps({
     type: String,
     default: '',
   },
+
+  durationLabel: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits([
@@ -68,6 +78,7 @@ const emit = defineEmits([
   'change-settings',
   'update-wind-level',
   'update-zone-size',
+  'update-duration',
 ])
 </script>
 
@@ -75,16 +86,16 @@ const emit = defineEmits([
   <!-- Lv.2 飛行前設定 -->
   <div
     v-if="phase === 'setup'"
-    class="absolute inset-0 z-40 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
+    class="absolute inset-0 z-40 flex items-center justify-center bg-black/40 px-4 py-4 backdrop-blur-[2px]"
   >
     <section
-      class="pointer-events-auto w-[min(560px,calc(100%-16px))] rounded-3xl border border-white/10 bg-black/80 p-6 shadow-2xl backdrop-blur"
+      class="pointer-events-auto max-h-[calc(100%-16px)] w-[min(580px,calc(100%-16px))] overflow-y-auto rounded-3xl border border-white/10 bg-black/80 p-6 shadow-2xl backdrop-blur"
     >
       <header class="mb-5">
         <p
           class="text-xs font-semibold uppercase tracking-[0.22em] text-lime-300"
         >
-          Stability Training Lv.2
+          Stability Training Lv.{{ level }}
         </p>
 
         <h2
@@ -94,6 +105,16 @@ const emit = defineEmits([
         </h2>
 
         <p
+          v-if="level === 1"
+          class="mt-2 text-sm leading-6 text-white/50"
+        >
+          保持機頭方向不變，只使用 Pitch／Roll，
+          <br>
+          將無人機維持在穩定範圍內。
+        </p>
+
+        <p
+          v-else
           class="mt-2 text-sm leading-6 text-white/50"
         >
           設定本回合的風力與穩定範圍，確認後開始訓練。
@@ -104,11 +125,15 @@ const emit = defineEmits([
         v-if="settings"
         :settings="settings"
         :embedded="true"
+        :show-difficulty="level === 2"
         @update-wind-level="
           emit('update-wind-level', $event)
         "
         @update-zone-size="
           emit('update-zone-size', $event)
+        "
+        @update-duration="
+          emit('update-duration', $event)
         "
       />
 
@@ -133,23 +158,30 @@ const emit = defineEmits([
       <p
         class="text-xs font-semibold uppercase tracking-[0.22em] text-lime-300"
       >
-        Stability Training
+        Stability Training Lv.{{ level }}
       </p>
 
       <div
-        v-if="showDifficulty"
         class="mt-4 flex flex-wrap justify-center gap-2"
       >
-        <span
-          class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60"
-        >
-          WIND · {{ windLabel }}
-        </span>
+        <template v-if="showDifficulty">
+          <span
+            class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60"
+          >
+            WIND · {{ windLabel }}
+          </span>
+
+          <span
+            class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60"
+          >
+            TARGET · {{ zoneLabel }}
+          </span>
+        </template>
 
         <span
           class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60"
         >
-          TARGET · {{ zoneLabel }}
+          TIME · {{ durationLabel }}
         </span>
       </div>
 
@@ -217,7 +249,7 @@ const emit = defineEmits([
         <p
           class="text-xs font-semibold uppercase tracking-[0.22em] text-lime-300"
         >
-          Stability Training
+          Stability Training Lv.{{ level }}
         </p>
 
         <h2
@@ -264,21 +296,40 @@ const emit = defineEmits([
         </div>
       </div>
 
-      <!-- Heading -->
       <div
-        class="mb-5 rounded-2xl border border-white/10 bg-white/4 p-4"
+        class="mb-5 grid grid-cols-2 gap-3"
       >
-        <p
-          class="text-[11px] uppercase tracking-[0.18em] text-white/40"
+        <div
+          class="rounded-2xl border border-white/10 bg-white/4 p-4"
         >
-          Heading
-        </p>
+          <p
+            class="text-[11px] uppercase tracking-[0.18em] text-white/40"
+          >
+            Heading
+          </p>
 
-        <p
-          class="mt-1 text-xl font-semibold text-white"
+          <p
+            class="mt-1 text-base font-semibold text-white"
+          >
+            {{ headingLabel }}
+          </p>
+        </div>
+
+        <div
+          class="rounded-2xl border border-white/10 bg-white/4 p-4"
         >
-          {{ headingLabel }}
-        </p>
+          <p
+            class="text-[11px] uppercase tracking-[0.18em] text-white/40"
+          >
+            Duration
+          </p>
+
+          <p
+            class="mt-1 text-base font-semibold text-white"
+          >
+            {{ durationLabel }}
+          </p>
+        </div>
       </div>
 
       <!-- Result -->
@@ -357,7 +408,7 @@ const emit = defineEmits([
       </button>
 
       <button
-        v-if="showDifficulty"
+        v-if="level === 2 && showDifficulty"
         type="button"
         class="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white active:scale-[0.99]"
         @click="emit('change-settings')"

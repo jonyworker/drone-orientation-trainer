@@ -83,7 +83,7 @@ const stabilityDistance = ref(0)
 const stabilityInsideTime = ref(0)
 const stabilityOutsideTime = ref(0)
 
-const STABILITY_DURATION = 10
+const DEFAULT_STABILITY_DURATION = 60
 const STABILITY_READY_DURATION = 3
 
 const stabilityPhase = ref('ready')
@@ -92,6 +92,9 @@ const stabilityReadyElapsed = ref(0)
 
 const stabilityRoundWindLevel = ref('normal')
 const stabilityRoundZoneSize = ref('normal')
+const stabilityRoundDuration = ref(
+  DEFAULT_STABILITY_DURATION,
+)
 
 const stabilityReadyCount = computed(() =>
   Math.max(
@@ -106,7 +109,7 @@ const stabilityReadyCount = computed(() =>
 const stabilityRemainingTime = computed(() =>
   Math.max(
     0,
-    STABILITY_DURATION
+    stabilityRoundDuration.value
     - stabilityElapsedTime.value,
   ),
 )
@@ -125,6 +128,13 @@ const isStickTraining = computed(() =>
 const isStabilityTraining = computed(() =>
   props.settings.trainingMode
     .startsWith('stabilityTraining'),
+)
+
+const stabilityTrainingLevel = computed(() =>
+  props.settings.trainingMode
+  === 'stabilityTraining2'
+    ? 2
+    : 1,
 )
 
 const stickTrainingLevel = computed(() => {
@@ -309,6 +319,12 @@ const stabilityZoneLabel = computed(() => {
 
   return `${option.label} · R ${option.radius.toFixed(1)} m`
 })
+
+const stabilityDurationLabel = computed(() =>
+  formatStabilityDurationLabel(
+    stabilityRoundDuration.value,
+  ),
+)
 
 const stabilityTotalLabel =
   computed(() =>
@@ -653,7 +669,7 @@ function updateStabilityScore(delta) {
   }
 
   const remaining =
-    STABILITY_DURATION
+    stabilityRoundDuration.value
     - stabilityElapsedTime.value
 
   const countedDelta =
@@ -682,19 +698,19 @@ function updateStabilityScore(delta) {
 
   const finished =
     stabilityElapsedTime.value
-    >= STABILITY_DURATION
+    >= stabilityRoundDuration.value
     - 0.0001
 
   if (finished) {
     stabilityElapsedTime.value =
-      STABILITY_DURATION
+      stabilityRoundDuration.value
 
     const totalRecorded =
       stabilityInsideTime.value
       + stabilityOutsideTime.value
 
     const correction =
-      STABILITY_DURATION
+      stabilityRoundDuration.value
       - totalRecorded
 
     if (
@@ -995,27 +1011,33 @@ function resetStabilityScore() {
   stabilityReadyElapsed.value = 0
 
   stabilityPhase.value =
-    props.settings.trainingMode
-    === 'stabilityTraining2'
-      ? 'setup'
-      : 'ready'
+    'setup'
 }
 
 function startStabilityTraining() {
   if (
-    props.settings.trainingMode
-    !== 'stabilityTraining2'
+    !isStabilityTraining.value
     || stabilityPhase.value
     !== 'setup'
   ) {
     return
   }
 
-  stabilityRoundWindLevel.value =
-    props.settings.stabilityWindLevel
+  stabilityRoundDuration.value =
+    normalizeStabilityDuration(
+      props.settings.stabilityDuration,
+    )
 
-  stabilityRoundZoneSize.value =
-    props.settings.stabilityZoneSize
+  if (
+    props.settings.trainingMode
+    === 'stabilityTraining2'
+  ) {
+    stabilityRoundWindLevel.value =
+      props.settings.stabilityWindLevel
+
+    stabilityRoundZoneSize.value =
+      props.settings.stabilityZoneSize
+  }
 
   stabilityInsideTime.value = 0
   stabilityOutsideTime.value = 0
@@ -1056,15 +1078,8 @@ function startStabilityTraining() {
 
 function retryStabilityTraining() {
   if (
-    props.settings.trainingMode
-    !== 'stabilityTraining2'
-  ) {
-    resetSimulation()
-    return
-  }
-
-  if (
-    stabilityPhase.value
+    !isStabilityTraining.value
+    || stabilityPhase.value
     !== 'finished'
   ) {
     return
@@ -1170,6 +1185,21 @@ function updateStabilityZoneSize(value) {
 
   updateStabilityZone()
   updateStabilityBoundary()
+}
+
+function updateStabilityDuration(value) {
+  if (
+    !isStabilityTraining.value
+    || stabilityPhase.value
+    !== 'setup'
+  ) {
+    return
+  }
+
+  props.settings.stabilityDuration =
+    normalizeStabilityDuration(
+      value,
+    )
 }
 
 function animate(timestamp) {
@@ -1465,6 +1495,54 @@ function animate(timestamp) {
     scene,
     camera,
   )
+}
+
+function normalizeStabilityDuration(
+  value,
+) {
+  const seconds =
+    Number(value)
+
+  if (
+    !Number.isFinite(seconds)
+  ) {
+    return DEFAULT_STABILITY_DURATION
+  }
+
+  return Math.min(
+    600,
+    Math.max(
+      10,
+      Math.round(seconds),
+    ),
+  )
+}
+
+function formatStabilityDurationLabel(
+  seconds,
+) {
+  const safeSeconds =
+    normalizeStabilityDuration(
+      seconds,
+    )
+
+  if (safeSeconds < 60) {
+    return `${safeSeconds} 秒`
+  }
+
+  if (safeSeconds % 60 === 0) {
+    return `${safeSeconds / 60} 分鐘`
+  }
+
+  const minutes =
+    Math.floor(
+      safeSeconds / 60,
+    )
+
+  const secs =
+    safeSeconds % 60
+
+  return `${minutes} 分 ${secs} 秒`
 }
 
 function formatStabilityTime(
@@ -1771,6 +1849,7 @@ onBeforeUnmount(
       :inside-label="stabilityInsideLabel"
       :outside-label="stabilityOutsideLabel"
       :stability-label="stabilityPercentLabel"
+      :level="stabilityTrainingLevel"
       :show-difficulty="
         settings.trainingMode
         === 'stabilityTraining2'
@@ -1778,8 +1857,10 @@ onBeforeUnmount(
       :settings="settings"
       :wind-label="stabilityWindLabel"
       :zone-label="stabilityZoneLabel"
+      :duration-label="stabilityDurationLabel"
       @update-wind-level="updateStabilityWindLevel"
       @update-zone-size="updateStabilityZoneSize"
+      @update-duration="updateStabilityDuration"
       @start="startStabilityTraining"
       @retry="retryStabilityTraining"
       @change-settings="changeStabilitySettings"
