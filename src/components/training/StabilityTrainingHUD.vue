@@ -76,6 +76,7 @@ const emit = defineEmits([
   'start',
   'retry',
   'change-settings',
+  'update-heading',
   'update-wind-level',
   'update-zone-size',
   'update-duration',
@@ -108,9 +109,7 @@ const emit = defineEmits([
           v-if="level === 1"
           class="mt-2 text-sm leading-6 text-white/50"
         >
-          保持機頭方向不變，只使用 Pitch／Roll，
-          <br>
-          將無人機維持在穩定範圍內。
+          保持機頭方向不變，只使用 Pitch／Roll，將無人機維持在穩定範圍內。
         </p>
 
         <p
@@ -126,6 +125,9 @@ const emit = defineEmits([
         :settings="settings"
         :embedded="true"
         :show-difficulty="level === 2"
+        @update-heading="
+          emit('update-heading', $event)
+        "
         @update-wind-level="
           emit('update-wind-level', $event)
         "

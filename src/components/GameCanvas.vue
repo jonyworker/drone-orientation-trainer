@@ -32,6 +32,7 @@ import { CameraController } from '@/core/CameraController.js'
 import { DronePhysics } from '@/core/DronePhysics.js'
 
 import {
+  stabilityHeadingOptions,
   stabilityWindOptions,
   stabilityZoneOptions,
 } from '@/stores/settingsStore.js'
@@ -95,6 +96,7 @@ const stabilityRoundZoneSize = ref('normal')
 const stabilityRoundDuration = ref(
   DEFAULT_STABILITY_DURATION,
 )
+const stabilityRoundHeading = ref('random')
 
 const stabilityReadyCount = computed(() =>
   Math.max(
@@ -464,6 +466,32 @@ function randomCardinalHeading() {
       * CARDINAL_HEADINGS.length,
     )
     ]
+}
+
+function getSelectedStabilityHeading() {
+  const selectedHeading =
+    stabilityHeadingOptions.find(
+      option =>
+        option.value
+        === stabilityRoundHeading.value,
+    )
+
+  if (
+    !selectedHeading
+    || selectedHeading.value === 'random'
+  ) {
+    return randomCardinalHeading()
+  }
+
+  return {
+    degrees:
+    selectedHeading.degrees,
+
+    radians:
+      THREE.MathUtils.degToRad(
+        selectedHeading.degrees,
+      ),
+  }
 }
 
 function modeYaw(mode) {
@@ -1032,11 +1060,17 @@ function startStabilityTraining() {
     props.settings.trainingMode
     === 'stabilityTraining2'
   ) {
+    stabilityRoundHeading.value =
+      props.settings.stabilityHeading
+
     stabilityRoundWindLevel.value =
       props.settings.stabilityWindLevel
 
     stabilityRoundZoneSize.value =
       props.settings.stabilityZoneSize
+
+    stabilityHeading.value =
+      getSelectedStabilityHeading()
   }
 
   stabilityInsideTime.value = 0
@@ -1090,8 +1124,16 @@ function retryStabilityTraining() {
   props.game.paused.value =
     false
 
-  stabilityHeading.value =
-    randomCardinalHeading()
+  if (
+    props.settings.trainingMode
+    === 'stabilityTraining2'
+  ) {
+    stabilityHeading.value =
+      getSelectedStabilityHeading()
+  } else {
+    stabilityHeading.value =
+      randomCardinalHeading()
+  }
 
   const yaw =
     stabilityHeading.value
@@ -1154,6 +1196,20 @@ function changeStabilitySettings() {
   }
 
   resetSimulation()
+}
+
+function updateStabilityHeading(value) {
+  if (
+    props.settings.trainingMode
+    !== 'stabilityTraining2'
+    || stabilityPhase.value
+    !== 'setup'
+  ) {
+    return
+  }
+
+  props.settings.stabilityHeading =
+    value
 }
 
 function updateStabilityWindLevel(value) {
@@ -1843,21 +1899,20 @@ onBeforeUnmount(
       v-if="isStabilityTraining"
       :time-label="stabilityTimeLabel"
       :phase="stabilityPhase"
-      :ready-count="stabilityReadyCount"
       :heading-label="stabilityHeadingLabel"
       :total-label="stabilityTotalLabel"
       :inside-label="stabilityInsideLabel"
       :outside-label="stabilityOutsideLabel"
       :stability-label="stabilityPercentLabel"
+      :ready-count="stabilityReadyCount"
       :level="stabilityTrainingLevel"
-      :show-difficulty="
-        settings.trainingMode
-        === 'stabilityTraining2'
-      "
       :settings="settings"
+      :show-difficulty="isStabilityTrainingLevel2"
       :wind-label="stabilityWindLabel"
       :zone-label="stabilityZoneLabel"
       :duration-label="stabilityDurationLabel"
+
+      @update-heading="updateStabilityHeading"
       @update-wind-level="updateStabilityWindLevel"
       @update-zone-size="updateStabilityZoneSize"
       @update-duration="updateStabilityDuration"

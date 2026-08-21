@@ -116,6 +116,39 @@ export const stabilityZoneOptions = [
   },
 ]
 
+export const stabilityHeadingOptions = [
+  {
+    value: 'north',
+    label: '北',
+    degrees: 0,
+    symbol: '↑',
+  },
+  {
+    value: 'east',
+    label: '東',
+    degrees: 90,
+    symbol: '→',
+  },
+  {
+    value: 'south',
+    label: '南',
+    degrees: 180,
+    symbol: '↓',
+  },
+  {
+    value: 'west',
+    label: '西',
+    degrees: 270,
+    symbol: '←',
+  },
+  {
+    value: 'random',
+    label: '隨機',
+    degrees: null,
+    symbol: '◇',
+  },
+]
+
 export const stabilityDurationOptions = [
   {
     value: 30,
@@ -167,6 +200,7 @@ const state = reactive({
   windMode: 'none',
   trainingMode: 'free',
 
+  stabilityHeading: 'random',
   stabilityWindLevel: 'normal',
   stabilityZoneSize: 'normal',
   stabilityDuration: 60,

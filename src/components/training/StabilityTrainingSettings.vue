@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 import {
   stabilityDurationOptions,
+  stabilityHeadingOptions,
   stabilityWindOptions,
   stabilityZoneOptions,
 } from '@/stores/settingsStore.js'
@@ -25,6 +26,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
+  'update-heading',
   'update-wind-level',
   'update-zone-size',
   'update-duration',
@@ -70,6 +72,13 @@ function updateCustomDuration(event) {
     event.target.value,
   )
 }
+
+function selectHeading(value) {
+  emit(
+    'update-heading',
+    value,
+  )
+}
 </script>
 
 <template>
@@ -98,12 +107,56 @@ function updateCustomDuration(event) {
     </div>
 
     <template v-if="showDifficulty">
-      <div>
-        <p
-          class="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/45"
-        >
-          Wind
-        </p>
+      <!-- Heading -->
+      <div
+        v-if="showDifficulty"
+      >
+        <div class="mb-2 flex items-center justify-start gap-2">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-white/80">Heading</p>
+          <p class="text-xs text-white/40">指定機頭方向可針對單一方向反覆練習；隨機模式會在每次挑戰重新抽取方向。</p>
+        </div>
+
+        <div class="grid grid-cols-5 gap-1">
+          <button
+            v-for="option in stabilityHeadingOptions"
+            :key="option.value"
+            type="button"
+            class="rounded-xl border px-2 py-3 text-center transition"
+            :class="
+              settings.stabilityHeading === option.value
+                ? 'border-lime-300/50 bg-lime-300/10 text-lime-200'
+                : 'border-white/10 bg-white/[0.025] text-white/55 hover:border-white/20 hover:bg-white/5'
+            "
+            @click="selectHeading(option.value)"
+          >
+            <span class="block text-lg font-semibold">
+              {{ option.symbol }}
+            </span>
+
+            <span class="mt-1 block font-mono text-[10px] text-white/30">
+              {{
+                option.degrees === null
+                  ? 'RANDOM'
+                  : `${option.degrees}°`
+              }}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-5 border-t border-white/8 pt-5">
+        <div class="mb-2 flex items-center justify-start gap-1">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-white/80">Wind</p>
+          <p class="text-xs text-white/40">
+            {{
+              stabilityWindOptions.find(
+                option =>
+                  option.value
+                  === settings.stabilityWindLevel,
+              )?.description
+            }}
+          </p>
+        </div>
 
         <div class="grid grid-cols-3 gap-2">
           <button
@@ -124,25 +177,22 @@ function updateCustomDuration(event) {
           </button>
         </div>
 
-        <p class="mt-2 text-xs text-white/40">
-          {{
-            stabilityWindOptions.find(
-              option =>
-                option.value
-                === settings.stabilityWindLevel,
-            )?.description
-          }}
-        </p>
+
       </div>
 
-      <div
-        class="mt-5 border-t border-white/8 pt-5"
-      >
-        <p
-          class="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/45"
-        >
-          Target Size
-        </p>
+      <div class="mt-5 border-t border-white/8 pt-5">
+        <div class="mb-2 flex items-center justify-start gap-1">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-white/80">Target Size</p>
+          <p class="text-xs text-white/40">
+            {{
+              stabilityZoneOptions.find(
+                option =>
+                  option.value
+                  === settings.stabilityZoneSize,
+              )?.description
+            }}
+          </p>
+        </div>
 
         <div class="grid grid-cols-3 gap-2">
           <button
@@ -168,40 +218,13 @@ function updateCustomDuration(event) {
             </span>
           </button>
         </div>
-
-        <p class="mt-2 text-xs text-white/40">
-          {{
-            stabilityZoneOptions.find(
-              option =>
-                option.value
-                === settings.stabilityZoneSize,
-            )?.description
-          }}
-        </p>
       </div>
     </template>
 
-    <div
-      :class="
-        showDifficulty
-          ? 'mt-5 border-t border-white/8 pt-5'
-          : ''
-      "
-    >
-      <div
-        class="mb-2 flex items-center justify-between gap-3"
-      >
-        <p
-          class="text-xs font-semibold uppercase tracking-[0.16em] text-white/45"
-        >
-          Duration
-        </p>
-
-        <span
-          class="text-[11px] text-white/30"
-        >
-          訓練時間
-        </span>
+    <div :class="showDifficulty ? 'mt-5 border-t border-white/8 pt-5' : ''">
+      <div class="mb-2 flex items-center justify-start gap-1">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-white/80">Duration</p>
+        <p class="text-xs text-white/40">30 秒適合快速練習，60 秒為標準訓練， 120 秒以上開始考驗持續穩定控制。</p>
       </div>
 
       <div class="grid grid-cols-4 gap-2">
@@ -276,11 +299,6 @@ function updateCustomDuration(event) {
           秒
         </span>
       </div>
-
-      <p class="mt-2 text-xs text-white/40">
-        30 秒適合快速練習，60 秒為標準訓練，
-        120 秒以上開始考驗持續穩定控制。
-      </p>
     </div>
   </section>
 </template>
