@@ -30,11 +30,11 @@ export function createDrone() {
   top.position.set(0, 0.22, -0.1)
   drone.add(top)
 
-  const nose = mesh(new THREE.ConeGeometry(0.18, 0.48, 4), front)
-  nose.rotation.x = -Math.PI / 2
-  nose.rotation.z = Math.PI / 4
-  nose.position.set(0, 0.13, -0.68)
-  drone.add(nose)
+  // const nose = mesh(new THREE.ConeGeometry(0.18, 0.48, 4), front)
+  // nose.rotation.x = -Math.PI / 2
+  // nose.rotation.z = Math.PI / 4
+  // nose.position.set(0, 0.13, -0.68)
+  // drone.add(nose)
 
   const cameraHousing = mesh(new THREE.BoxGeometry(0.25, 0.18, 0.18), dark)
   cameraHousing.position.set(0, -0.03, -0.56)
